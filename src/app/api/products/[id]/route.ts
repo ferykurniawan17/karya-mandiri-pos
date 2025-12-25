@@ -65,11 +65,42 @@ export async function PUT(
       )
     }
 
+    // Get current product to preserve SKU
+    const currentProduct = await prisma.product.findUnique({
+      where: { id: params.id },
+    })
+
+    if (!currentProduct) {
+      return NextResponse.json(
+        { error: 'Produk tidak ditemukan' },
+        { status: 404 }
+      )
+    }
+
+    // SKU cannot be changed during edit - use existing SKU
+    const finalSku = currentProduct.sku || sku || undefined
+
+    // If SKU is being changed, check uniqueness
+    if (sku && sku !== currentProduct.sku) {
+      const existingProduct = await prisma.product.findFirst({
+        where: { 
+          sku,
+          id: { not: params.id }
+        },
+      })
+      if (existingProduct) {
+        return NextResponse.json(
+          { error: 'SKU sudah digunakan' },
+          { status: 400 }
+        )
+      }
+    }
+
     const product = await prisma.product.update({
       where: { id: params.id },
       data: {
         name,
-        sku: sku || undefined,
+        sku: finalSku, // Keep existing SKU, don't allow changes
         stock: parseInt(stock) || 0,
         minimalStock: parseInt(minimalStock) || 0,
         unit,

@@ -1,6 +1,13 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import { Edit, Trash2 } from 'lucide-react'
 
 interface Category {
   id: string
@@ -53,7 +60,7 @@ export default function ProductList({ products, onEdit, onDelete }: ProductListP
 
   return (
     <div className="bg-white shadow overflow-hidden sm:rounded-md">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 p-4">
         {products.map((product) => (
           <div
             key={product.id}
@@ -103,23 +110,39 @@ export default function ProductList({ products, onEdit, onDelete }: ProductListP
               )}
             </div>
 
-            <div className="mt-4 flex space-x-2">
-              <Button
-                variant="default"
-                size="sm"
-                className="flex-1"
-                onClick={() => onEdit(product)}
-              >
-                Edit
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                className="flex-1"
-                onClick={() => onDelete(product.id)}
-              >
-                Hapus
-              </Button>
+            <div className="mt-4 flex justify-center space-x-2">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => onEdit(product)}
+                      className="h-9 w-9"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Edit Produk</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      onClick={() => onDelete(product.id)}
+                      className="h-9 w-9"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Hapus Produk</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
             </div>
           </div>

@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
+import { RefreshCw } from 'lucide-react'
 
 interface Category {
   id: string
@@ -52,14 +53,17 @@ export default function ProductForm({ product, categories, onSave, onCancel }: P
     placement: '',
     categoryId: '',
   })
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string>('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [generatingSKU, setGeneratingSKU] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
     if (product) {
+      const categoryId = product.categoryId || ''
       setFormData({
         name: product.name,
         sku: product.sku || '',
@@ -70,13 +74,132 @@ export default function ProductForm({ product, categories, onSave, onCancel }: P
         sellingPrice: product.sellingPrice.toString(),
         photo: product.photo || '',
         placement: product.placement || '',
-        categoryId: product.categoryId,
+        categoryId: categoryId,
       })
+      // Set selected category ID separately for Select component
+      // Set immediately - Radix Select should handle this
+      setSelectedCategoryId(categoryId)
       if (product.photo) {
         setPhotoPreview(product.photo)
       }
+    } else {
+      // Reset form when no product (new product)
+      setFormData({
+        name: '',
+        sku: '',
+        stock: '0',
+        minimalStock: '0',
+        unit: 'pcs',
+        purchasePrice: '0',
+        sellingPrice: '0',
+        photo: '',
+        placement: '',
+        categoryId: '',
+      })
+      setSelectedCategoryId('')
+      setPhotoPreview('')
+      setPhotoFile(null)
     }
   }, [product])
+
+  const generateSKU = async () => {
+    if (!formData.name) {
+      toast({
+        title: 'Peringatan',
+        description: 'Nama produk harus diisi terlebih dahulu',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (!selectedCategoryId) {
+      toast({
+        title: 'Peringatan',
+        description: 'Kategori harus diisi terlebih dahulu untuk generate SKU',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setGeneratingSKU(true)
+
+    try {
+      // Get category code (first 3 letters of category name, uppercase)
+      const category = categories.find((c) => c.id === selectedCategoryId)
+      if (!category) {
+        toast({
+          title: 'Peringatan',
+          description: 'Kategori tidak ditemukan',
+          variant: 'destructive',
+        })
+        setGeneratingSKU(false)
+        return
+      }
+
+      const categoryCode = category.name
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .substring(0, 3)
+        .toUpperCase()
+
+      // Get product name abbreviation (first 3-4 letters, uppercase, remove spaces and special chars)
+      const productNameAbbr = formData.name
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .substring(0, 4)
+        .toUpperCase()
+
+      // Generate SKU with retry logic to ensure uniqueness
+      let sku = ''
+      let attempts = 0
+      const maxAttempts = 10
+
+      while (attempts < maxAttempts) {
+        // Generate SKU: CAT-PROD-XXX (where XXX is random 3 digits)
+        const randomNum = Math.floor(Math.random() * 1000)
+          .toString()
+          .padStart(3, '0')
+        
+        sku = `${categoryCode}-${productNameAbbr}-${randomNum}`
+
+        // Check if SKU already exists
+        try {
+          const checkResponse = await fetch(`/api/products/check-sku?sku=${encodeURIComponent(sku)}${product ? `&excludeId=${product.id}` : ''}`)
+          const checkData = await checkResponse.json()
+          
+          if (!checkData.exists) {
+            // SKU is unique, use it
+            setFormData({ ...formData, sku })
+            toast({
+              title: 'SKU Generated',
+              description: `SKU berhasil dibuat: ${sku}`,
+            })
+            setGeneratingSKU(false)
+            return
+          }
+        } catch (error) {
+          console.error('Error checking SKU:', error)
+          // If check fails, still use the generated SKU (backend will validate)
+          setFormData({ ...formData, sku })
+          toast({
+            title: 'SKU Generated',
+            description: `SKU berhasil dibuat: ${sku}`,
+          })
+          setGeneratingSKU(false)
+          return
+        }
+
+        attempts++
+      }
+
+      // If we couldn't generate a unique SKU after max attempts
+      toast({
+        title: 'Error',
+        description: 'Gagal generate SKU yang unique. Silakan coba lagi.',
+        variant: 'destructive',
+      })
+    } finally {
+      setGeneratingSKU(false)
+    }
+  }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -129,6 +252,7 @@ export default function ProductForm({ product, categories, onSave, onCancel }: P
         },
         body: JSON.stringify({
           ...formData,
+          categoryId: selectedCategoryId || formData.categoryId,
           photo: photoUrl,
         }),
       })
@@ -179,22 +303,48 @@ export default function ProductForm({ product, categories, onSave, onCancel }: P
           </div>
           <div className="space-y-2">
             <Label htmlFor="sku">SKU</Label>
-            <Input
-              id="sku"
-              type="text"
-              value={formData.sku}
-              onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-            />
+            <div className="flex gap-2">
+              <Input
+                id="sku"
+                type="text"
+                value={formData.sku}
+                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                placeholder={product ? "SKU tidak bisa diubah" : "Kosongkan untuk generate otomatis"}
+                className="flex-1"
+                disabled={!!product}
+                readOnly={!!product}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={generateSKU}
+                disabled={!formData.name || !selectedCategoryId || !!product || generatingSKU}
+                title={product ? "SKU tidak bisa diubah saat edit" : "Generate SKU otomatis (kategori harus diisi)"}
+              >
+                <RefreshCw className={`h-4 w-4 ${generatingSKU ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500">
+              {product 
+                ? "SKU tidak bisa diubah setelah produk dibuat"
+                : "Klik tombol untuk generate SKU otomatis (kategori harus diisi terlebih dahulu)"}
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="category">Kategori *</Label>
             <Select
               required
-              value={formData.categoryId}
-              onValueChange={(value) => setFormData({ ...formData, categoryId: value })}
+              value={selectedCategoryId && selectedCategoryId !== '' ? selectedCategoryId : undefined}
+              onValueChange={(value) => {
+                setSelectedCategoryId(value)
+                setFormData((prev) => ({ ...prev, categoryId: value }))
+              }}
+              key={`category-select-${product?.id || 'new'}-${selectedCategoryId}`}
             >
               <SelectTrigger id="category">
-                <SelectValue placeholder="Pilih Kategori" />
+                <SelectValue placeholder="Pilih Kategori">
+                  {selectedCategoryId && categories.find((c) => c.id === selectedCategoryId)?.name}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {categories.map((cat) => (

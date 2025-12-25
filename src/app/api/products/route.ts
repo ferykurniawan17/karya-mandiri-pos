@@ -78,6 +78,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Check if SKU is unique (if provided)
+    if (sku) {
+      const existingProduct = await prisma.product.findFirst({
+        where: { sku },
+      })
+      if (existingProduct) {
+        return NextResponse.json(
+          { error: 'SKU sudah digunakan' },
+          { status: 400 }
+        )
+      }
+    }
+
     const product = await prisma.product.create({
       data: {
         name,
