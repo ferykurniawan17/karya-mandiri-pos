@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+@layer base {
+  body {
+    @apply bg-white text-gray-900;
+    font-family: Arial, Helvetica, sans-serif;
+  }
+  
+  /* Ensure all text elements default to black */
+  h1, h2, h3, h4, h5, h6,
+  p, span, div, label,
+  input, textarea, select,
+  button {
+    @apply text-gray-900;
+  }
+  
+  /* Placeholder text should remain gray */
+  input::placeholder,
+  textarea::placeholder {
+    @apply text-gray-500;
+  }
+  
+  /* Disabled elements should remain gray */
+  input:disabled,
+  textarea:disabled,
+  select:disabled,
+  button:disabled {
+    @apply text-gray-500;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
