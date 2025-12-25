@@ -14,6 +14,7 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { RefreshCw } from 'lucide-react'
 import { MultiSelect } from '@/components/ui/multi-select'
+import { CurrencyInput } from '@/components/ui/currency-input'
 
 interface Category {
   id: string
@@ -469,26 +470,22 @@ export default function ProductForm({ product, categories, tags, brands, onSave,
           </div>
           <div className="space-y-2">
             <Label htmlFor="purchasePrice">Harga Beli *</Label>
-            <Input
+            <CurrencyInput
               id="purchasePrice"
-              type="number"
-              min="0"
-              step="0.01"
               required
               value={formData.purchasePrice}
-              onChange={(e) => setFormData({ ...formData, purchasePrice: e.target.value })}
+              onChange={(value) => setFormData({ ...formData, purchasePrice: value })}
+              placeholder="Rp 0,00"
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="sellingPrice">Harga Jual *</Label>
-            <Input
+            <CurrencyInput
               id="sellingPrice"
-              type="number"
-              min="0"
-              step="0.01"
               required
               value={formData.sellingPrice}
-              onChange={(e) => setFormData({ ...formData, sellingPrice: e.target.value })}
+              onChange={(value) => setFormData({ ...formData, sellingPrice: value })}
+              placeholder="Rp 0,00"
             />
           </div>
           <div className="space-y-2">

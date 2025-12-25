@@ -1,179 +1,213 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { CartItem } from '@/types'
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { CartItem } from "@/types";
+import { CurrencyInput } from "@/components/ui/currency-input";
 
 interface Product {
-  id: string
-  name: string
-  sku?: string
-  stock: number
-  unit: string
-  sellingPrice: number
-  photo?: string
+  id: string;
+  name: string;
+  sku?: string;
+  stock: number;
+  unit: string;
+  sellingPrice: number;
+  photo?: string;
   category: {
-    id: string
-    name: string
-  }
+    id: string;
+    name: string;
+  };
 }
 
 export default function POSInterface() {
-  const router = useRouter()
-  const [products, setProducts] = useState<Product[]>([])
-  const [cart, setCart] = useState<CartItem[]>([])
-  const [search, setSearch] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('all')
-  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
-  const [cash, setCash] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [showReceipt, setShowReceipt] = useState(false)
-  const [lastTransaction, setLastTransaction] = useState<any>(null)
+  const router = useRouter();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>(
+    []
+  );
+  const [cash, setCash] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [lastTransaction, setLastTransaction] = useState<any>(null);
 
   useEffect(() => {
-    fetchProducts()
-    fetchCategories()
-  }, [search, categoryFilter])
+    fetchProducts();
+    fetchCategories();
+  }, [search, categoryFilter]);
 
   const fetchProducts = async () => {
     try {
-      const url = `/api/products?search=${encodeURIComponent(search)}${categoryFilter && categoryFilter !== 'all' ? `&categoryId=${categoryFilter}` : ''}`
-      const response = await fetch(url)
-      const data = await response.json()
+      const url = `/api/products?search=${encodeURIComponent(search)}${
+        categoryFilter && categoryFilter !== "all"
+          ? `&categoryId=${categoryFilter}`
+          : ""
+      }`;
+      const response = await fetch(url);
+      const data = await response.json();
       if (response.ok) {
-        setProducts(data.products.filter((p: Product) => p.stock > 0))
+        setProducts(data.products.filter((p: Product) => p.stock > 0));
       }
     } catch (err) {
-      console.error('Error fetching products:', err)
+      console.error("Error fetching products:", err);
     }
-  }
+  };
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch('/api/categories')
-      const data = await response.json()
+      const response = await fetch("/api/categories");
+      const data = await response.json();
       if (response.ok) {
-        setCategories(data.categories)
+        setCategories(data.categories);
       }
     } catch (err) {
-      console.error('Error fetching categories:', err)
+      console.error("Error fetching categories:", err);
     }
-  }
+  };
 
   const addToCart = (product: Product) => {
-    const existingItem = cart.find(item => item.product.id === product.id)
+    const existingItem = cart.find((item) => item.product.id === product.id);
 
     if (existingItem) {
       if (existingItem.quantity >= product.stock) {
-        alert('Stok tidak mencukupi')
-        return
+        alert("Stok tidak mencukupi");
+        return;
       }
-      setCart(cart.map(item =>
-        item.product.id === product.id
-          ? { ...item, quantity: item.quantity + 1, subtotal: (item.quantity + 1) * product.sellingPrice }
-          : item
-      ))
+      setCart(
+        cart.map((item) =>
+          item.product.id === product.id
+            ? {
+                ...item,
+                quantity: item.quantity + 1,
+                subtotal: (item.quantity + 1) * Number(product.sellingPrice),
+              }
+            : item
+        )
+      );
     } else {
-      setCart([...cart, {
-        product,
-        quantity: 1,
-        subtotal: product.sellingPrice,
-      }])
+      setCart([
+        ...cart,
+        {
+          product,
+          quantity: 1,
+          subtotal: Number(product.sellingPrice),
+        },
+      ]);
     }
-  }
+  };
 
   const updateQuantity = (productId: string, quantity: number) => {
     if (quantity <= 0) {
-      removeFromCart(productId)
-      return
+      removeFromCart(productId);
+      return;
     }
 
-    const item = cart.find(item => item.product.id === productId)
+    const item = cart.find((item) => item.product.id === productId);
     if (item && quantity > item.product.stock) {
-      alert('Stok tidak mencukupi')
-      return
+      alert("Stok tidak mencukupi");
+      return;
     }
 
-    setCart(cart.map(item =>
-      item.product.id === productId
-        ? { ...item, quantity, subtotal: quantity * item.product.sellingPrice }
-        : item
-    ))
-  }
+    setCart(
+      cart.map((item) =>
+        item.product.id === productId
+          ? {
+              ...item,
+              quantity,
+              subtotal: quantity * Number(item.product.sellingPrice),
+            }
+          : item
+      )
+    );
+  };
 
   const removeFromCart = (productId: string) => {
-    setCart(cart.filter(item => item.product.id !== productId))
-  }
+    setCart(cart.filter((item) => item.product.id !== productId));
+  };
 
   const getTotal = () => {
-    return cart.reduce((sum, item) => sum + item.subtotal, 0)
-  }
+    return cart.reduce((sum, item) => sum + item.subtotal, 0);
+  };
 
   const getChange = () => {
-    const total = getTotal()
-    const cashAmount = parseFloat(cash) || 0
-    return cashAmount - total
-  }
+    const total = getTotal();
+    const cashAmount = parseFloat(cash || "0") || 0;
+    return cashAmount - total;
+  };
 
   const handleCheckout = async () => {
     if (cart.length === 0) {
-      alert('Keranjang kosong')
-      return
+      alert("Keranjang kosong");
+      return;
     }
 
-    const total = getTotal()
-    const cashAmount = parseFloat(cash) || 0
+    const total = getTotal();
+    const cashAmount = parseFloat(cash) || 0;
 
     if (cashAmount < total) {
-      alert('Jumlah pembayaran kurang')
-      return
+      alert("Jumlah pembayaran kurang");
+      return;
     }
 
-    setLoading(true)
+    setLoading(true);
 
     try {
-      const response = await fetch('/api/transactions', {
-        method: 'POST',
+      const response = await fetch("/api/transactions", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          items: cart.map(item => ({
+          items: cart.map((item) => ({
             productId: item.product.id,
             quantity: item.quantity,
           })),
           cash: cashAmount,
         }),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (!response.ok) {
-        alert(data.error || 'Gagal melakukan transaksi')
-        setLoading(false)
-        return
+        alert(data.error || "Gagal melakukan transaksi");
+        setLoading(false);
+        return;
       }
 
-      setLastTransaction(data.transaction)
-      setCart([])
-      setCash('')
-      setShowReceipt(true)
-      setLoading(false)
-      fetchProducts()
-      router.refresh()
+      setLastTransaction(data.transaction);
+      setCart([]);
+      setCash("");
+      setShowReceipt(true);
+      setLoading(false);
+      fetchProducts();
+      router.refresh();
     } catch (err) {
-      alert('Terjadi kesalahan')
-      setLoading(false)
+      alert("Terjadi kesalahan");
+      setLoading(false);
     }
-  }
+  };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
+  const formatCurrency = (amount: number | string | any) => {
+    // Convert to number if it's a string or Decimal
+    let numAmount: number;
+    if (typeof amount === "string") {
+      numAmount = parseFloat(amount) || 0;
+    } else if (amount && typeof amount === "object" && "toNumber" in amount) {
+      // Handle Prisma Decimal type
+      numAmount = parseFloat(amount.toString()) || 0;
+    } else {
+      numAmount = Number(amount) || 0;
+    }
+
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
       minimumFractionDigits: 0,
-    }).format(amount)
-  }
+      maximumFractionDigits: 0,
+    }).format(numAmount);
+  };
 
   return (
     <div className="px-4 py-6 sm:px-0">
@@ -220,9 +254,15 @@ export default function POSInterface() {
                       className="w-full h-24 object-cover rounded mb-2"
                     />
                   )}
-                  <p className="font-medium text-sm text-gray-900 truncate">{product.name}</p>
-                  <p className="text-xs text-gray-500">{formatCurrency(product.sellingPrice)}</p>
-                  <p className="text-xs text-gray-400">Stok: {product.stock} {product.unit}</p>
+                  <p className="font-medium text-sm text-gray-900 truncate">
+                    {product.name}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {formatCurrency(product.sellingPrice)}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    Stok: {product.stock} {product.unit}
+                  </p>
                 </button>
               ))}
             </div>
@@ -243,8 +283,12 @@ export default function POSInterface() {
                     <div key={item.product.id} className="border-b pb-3">
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
-                          <p className="font-medium text-sm">{item.product.name}</p>
-                          <p className="text-xs text-gray-500">{formatCurrency(item.product.sellingPrice)}</p>
+                          <p className="font-medium text-sm">
+                            {item.product.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {formatCurrency(item.product.sellingPrice)}
+                          </p>
                         </div>
                         <button
                           onClick={() => removeFromCart(item.product.id)}
@@ -256,20 +300,28 @@ export default function POSInterface() {
                       <div className="flex items-center justify-between mt-2">
                         <div className="flex items-center space-x-2">
                           <button
-                            onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                            onClick={() =>
+                              updateQuantity(item.product.id, item.quantity - 1)
+                            }
                             className="w-6 h-6 rounded border border-gray-300 flex items-center justify-center hover:bg-gray-100"
                           >
                             -
                           </button>
-                          <span className="w-8 text-center">{item.quantity}</span>
+                          <span className="w-8 text-center">
+                            {item.quantity}
+                          </span>
                           <button
-                            onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+                            onClick={() =>
+                              updateQuantity(item.product.id, item.quantity + 1)
+                            }
                             className="w-6 h-6 rounded border border-gray-300 flex items-center justify-center hover:bg-gray-100"
                           >
                             +
                           </button>
                         </div>
-                        <p className="font-semibold">{formatCurrency(item.subtotal)}</p>
+                        <p className="font-semibold">
+                          {formatCurrency(item.subtotal)}
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -285,21 +337,23 @@ export default function POSInterface() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Jumlah Bayar
                     </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      value={cash}
-                      onChange={(e) => setCash(e.target.value)}
-                      placeholder="0"
+                    <CurrencyInput
+                      value={cash || "0"}
+                      onChange={(value) => setCash(value)}
+                      placeholder="Rp 0,00"
                     />
                   </div>
 
-                  {cash && parseFloat(cash) > 0 && (
+                  {cash && parseFloat(cash || "0") > 0 && (
                     <div className="flex justify-between">
                       <span>Kembalian:</span>
-                      <span className={getChange() < 0 ? 'text-red-600' : 'text-green-600 font-semibold'}>
+                      <span
+                        className={
+                          getChange() < 0
+                            ? "text-red-600"
+                            : "text-green-600 font-semibold"
+                        }
+                      >
                         {formatCurrency(getChange())}
                       </span>
                     </div>
@@ -310,7 +364,7 @@ export default function POSInterface() {
                     disabled={loading || cart.length === 0 || getChange() < 0}
                     className="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                   >
-                    {loading ? 'Memproses...' : 'Checkout'}
+                    {loading ? "Memproses..." : "Checkout"}
                   </button>
                 </div>
               </>
@@ -323,15 +377,21 @@ export default function POSInterface() {
       {showReceipt && lastTransaction && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h2 className="text-2xl font-bold mb-4 text-center">Struk Transaksi</h2>
+            <h2 className="text-2xl font-bold mb-4 text-center">
+              Struk Transaksi
+            </h2>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span>No. Invoice:</span>
-                <span className="font-semibold">{lastTransaction.invoiceNo}</span>
+                <span className="font-semibold">
+                  {lastTransaction.invoiceNo}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Tanggal:</span>
-                <span>{new Date(lastTransaction.createdAt).toLocaleString('id-ID')}</span>
+                <span>
+                  {new Date(lastTransaction.createdAt).toLocaleString("id-ID")}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Kasir:</span>
@@ -366,7 +426,7 @@ export default function POSInterface() {
             <div className="mt-6 flex space-x-4">
               <button
                 onClick={() => {
-                  window.print()
+                  window.print();
                 }}
                 className="flex-1 bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700"
               >
@@ -374,8 +434,8 @@ export default function POSInterface() {
               </button>
               <button
                 onClick={() => {
-                  setShowReceipt(false)
-                  setLastTransaction(null)
+                  setShowReceipt(false);
+                  setLastTransaction(null);
                 }}
                 className="flex-1 bg-gray-300 text-gray-700 py-2 rounded hover:bg-gray-400"
               >
@@ -386,6 +446,5 @@ export default function POSInterface() {
         </div>
       )}
     </div>
-  )
+  );
 }
-
