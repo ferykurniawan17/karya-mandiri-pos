@@ -375,75 +375,142 @@ export default function POSInterface() {
 
       {/* Receipt Modal */}
       {showReceipt && lastTransaction && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h2 className="text-2xl font-bold mb-4 text-center">
-              Struk Transaksi
-            </h2>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
+        <>
+          {/* Print-only receipt */}
+          <div className="receipt-print" style={{ display: "none" }}>
+            <h2>Struk Transaksi</h2>
+            <div className="receipt-info">
+              <div>
                 <span>No. Invoice:</span>
                 <span className="font-semibold">
                   {lastTransaction.invoiceNo}
                 </span>
               </div>
-              <div className="flex justify-between">
+              <div>
                 <span>Tanggal:</span>
                 <span>
                   {new Date(lastTransaction.createdAt).toLocaleString("id-ID")}
                 </span>
               </div>
-              <div className="flex justify-between">
+              <div>
                 <span>Kasir:</span>
                 <span>{lastTransaction.user.name}</span>
               </div>
-              <hr className="my-3" />
-              {lastTransaction.items.map((item: any) => (
-                <div key={item.id} className="flex justify-between">
-                  <div>
-                    <p className="font-medium">{item.product.name}</p>
-                    <p className="text-xs text-gray-500">
-                      {item.quantity} x {formatCurrency(item.price)}
-                    </p>
-                  </div>
-                  <span>{formatCurrency(item.subtotal)}</span>
+            </div>
+            <hr />
+            {lastTransaction.items.map((item: any) => (
+              <div key={item.id} className="receipt-item">
+                <div className="receipt-item-name">{item.product.name}</div>
+                <div className="receipt-item-detail">
+                  {item.quantity} x {formatCurrency(item.price)}
                 </div>
-              ))}
-              <hr className="my-3" />
-              <div className="flex justify-between font-semibold">
+                <div className="receipt-item-price">
+                  {formatCurrency(item.subtotal)}
+                </div>
+              </div>
+            ))}
+            <hr />
+            <div className="receipt-total">
+              <div>
                 <span>Total:</span>
                 <span>{formatCurrency(Number(lastTransaction.total))}</span>
               </div>
-              <div className="flex justify-between">
+              <div>
                 <span>Bayar:</span>
                 <span>{formatCurrency(Number(lastTransaction.cash))}</span>
               </div>
-              <div className="flex justify-between font-semibold text-lg">
+            </div>
+            <div className="receipt-change">
+              <div>
                 <span>Kembalian:</span>
                 <span>{formatCurrency(Number(lastTransaction.change))}</span>
               </div>
             </div>
-            <div className="mt-6 flex space-x-4">
-              <button
-                onClick={() => {
-                  window.print();
-                }}
-                className="flex-1 bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700"
-              >
-                Print
-              </button>
-              <button
-                onClick={() => {
-                  setShowReceipt(false);
-                  setLastTransaction(null);
-                }}
-                className="flex-1 bg-gray-300 text-gray-700 py-2 rounded hover:bg-gray-400"
-              >
-                Tutup
-              </button>
+            <hr />
+            <div
+              style={{
+                textAlign: "center",
+                marginTop: "8px",
+                fontSize: "10px",
+              }}
+            >
+              Terima Kasih
             </div>
           </div>
-        </div>
+
+          {/* Screen display */}
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 no-print">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <h2 className="text-2xl font-bold mb-4 text-center">
+                Struk Transaksi
+              </h2>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>No. Invoice:</span>
+                  <span className="font-semibold">
+                    {lastTransaction.invoiceNo}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Tanggal:</span>
+                  <span>
+                    {new Date(lastTransaction.createdAt).toLocaleString(
+                      "id-ID"
+                    )}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Kasir:</span>
+                  <span>{lastTransaction.user.name}</span>
+                </div>
+                <hr className="my-3" />
+                {lastTransaction.items.map((item: any) => (
+                  <div key={item.id} className="flex justify-between">
+                    <div>
+                      <p className="font-medium">{item.product.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {item.quantity} x {formatCurrency(item.price)}
+                      </p>
+                    </div>
+                    <span>{formatCurrency(item.subtotal)}</span>
+                  </div>
+                ))}
+                <hr className="my-3" />
+                <div className="flex justify-between font-semibold">
+                  <span>Total:</span>
+                  <span>{formatCurrency(Number(lastTransaction.total))}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Bayar:</span>
+                  <span>{formatCurrency(Number(lastTransaction.cash))}</span>
+                </div>
+                <div className="flex justify-between font-semibold text-lg">
+                  <span>Kembalian:</span>
+                  <span>{formatCurrency(Number(lastTransaction.change))}</span>
+                </div>
+              </div>
+              <div className="mt-6 flex space-x-4">
+                <button
+                  onClick={() => {
+                    window.print();
+                  }}
+                  className="flex-1 bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700"
+                >
+                  Print
+                </button>
+                <button
+                  onClick={() => {
+                    setShowReceipt(false);
+                    setLastTransaction(null);
+                  }}
+                  className="flex-1 bg-gray-300 text-gray-700 py-2 rounded hover:bg-gray-400"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

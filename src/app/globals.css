@@ -49,3 +49,120 @@
   }
 }
 
+/* Print styles for thermal printer (80mm / 3 inch paper) */
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0;
+    padding: 5mm;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Hide everything except receipt */
+  body * {
+    visibility: hidden;
+  }
+
+  .receipt-print,
+  .receipt-print * {
+    visibility: visible;
+  }
+
+  .receipt-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    max-width: 80mm;
+    padding: 10mm 5mm;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #000;
+    background: white;
+    display: block !important;
+    visibility: visible !important;
+  }
+
+  /* Hide buttons and non-printable elements */
+  button,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Receipt header */
+  .receipt-print h2 {
+    font-size: 16px;
+    font-weight: bold;
+    text-align: center;
+    margin: 0 0 8px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed #000;
+  }
+
+  /* Receipt content */
+  .receipt-print .receipt-info {
+    font-size: 11px;
+    margin-bottom: 8px;
+  }
+
+  .receipt-print .receipt-info div {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
+  .receipt-print hr {
+    border: none;
+    border-top: 1px dashed #000;
+    margin: 8px 0;
+  }
+
+  /* Receipt items */
+  .receipt-print .receipt-item {
+    margin-bottom: 6px;
+    font-size: 11px;
+  }
+
+  .receipt-print .receipt-item-name {
+    font-weight: 500;
+    margin-bottom: 2px;
+  }
+
+  .receipt-print .receipt-item-detail {
+    font-size: 10px;
+    color: #333;
+    margin-bottom: 2px;
+  }
+
+  .receipt-print .receipt-item-price {
+    text-align: right;
+  }
+
+  /* Receipt totals */
+  .receipt-print .receipt-total {
+    font-weight: bold;
+    font-size: 12px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed #000;
+  }
+
+  .receipt-print .receipt-total div {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
+  .receipt-print .receipt-change {
+    font-size: 14px;
+    font-weight: bold;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 2px solid #000;
+  }
+}
+
