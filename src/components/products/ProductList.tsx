@@ -57,28 +57,27 @@ export default function ProductList({ products, onEdit, onDelete }: ProductListP
         {products.map((product) => (
           <div
             key={product.id}
-            className={`border rounded-lg p-4 hover:shadow-lg transition-shadow ${
+            className={`border rounded-lg overflow-hidden hover:shadow-lg transition-shadow ${
               isLowStock(product) ? 'border-red-300 bg-red-50' : 'border-gray-200'
             }`}
           >
-            <div className="flex items-start justify-between mb-2">
-              <div className="flex-1">
+            {product.photo && (
+              <div className="w-full h-[130px] bg-gray-100 flex items-center justify-center">
+                <img
+                  src={product.photo}
+                  alt={product.name}
+                  className="w-full h-full max-h-[130px] object-contain"
+                />
+              </div>
+            )}
+            <div className="p-4">
+              <div className="mb-2">
                 <h3 className="font-semibold text-gray-900">{product.name}</h3>
                 {product.sku && (
                   <p className="text-sm text-gray-500">SKU: {product.sku}</p>
                 )}
                 <p className="text-sm text-gray-600">{product.category.name}</p>
               </div>
-              {product.photo && (
-                <div className="ml-2">
-                  <img
-                    src={product.photo}
-                    alt={product.name}
-                    className="w-16 h-16 object-cover rounded"
-                  />
-                </div>
-              )}
-            </div>
 
             <div className="mt-3 space-y-1 text-sm">
               <div className="flex justify-between">
@@ -121,6 +120,7 @@ export default function ProductList({ products, onEdit, onDelete }: ProductListP
               >
                 Hapus
               </Button>
+            </div>
             </div>
           </div>
         ))}

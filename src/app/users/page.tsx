@@ -26,7 +26,7 @@ export default async function UsersPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center space-x-4">
               <a href="/dashboard" className="text-gray-600 hover:text-gray-900">
@@ -38,7 +38,7 @@ export default async function UsersPage() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main className="w-full py-6 sm:px-6 lg:px-8">
         <UserManagement initialUsers={users} />
       </main>
     </div>
