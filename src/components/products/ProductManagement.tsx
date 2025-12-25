@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { useToast } from '@/hooks/use-toast'
 import ProductForm from './ProductForm'
 import ProductList from './ProductList'
 
@@ -51,6 +52,7 @@ export default function ProductManagement() {
   const [showForm, setShowForm] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [loading, setLoading] = useState(false)
+  const { toast } = useToast()
 
   useEffect(() => {
     fetchCategories()
@@ -122,6 +124,119 @@ export default function ProductManagement() {
     setEditingProduct(null)
   }
 
+  const generateSKU = async (productName: string, categoryId: string): Promise<string | null> => {
+    const category = categories.find((c) => c.id === categoryId)
+    if (!category) {
+      return null
+    }
+
+    const categoryCode = category.name
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .substring(0, 3)
+      .toUpperCase()
+
+    const productNameAbbr = productName
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .substring(0, 4)
+      .toUpperCase()
+
+    let attempts = 0
+    const maxAttempts = 10
+
+    while (attempts < maxAttempts) {
+      const randomNum = Math.floor(Math.random() * 1000)
+        .toString()
+        .padStart(3, '0')
+      
+      const sku = `${categoryCode}-${productNameAbbr}-${randomNum}`
+
+      try {
+        const checkResponse = await fetch(`/api/products/check-sku?sku=${encodeURIComponent(sku)}`)
+        const checkData = await checkResponse.json()
+        
+        if (!checkData.exists) {
+          return sku
+        }
+      } catch (error) {
+        console.error('Error checking SKU:', error)
+        // If check fails, return the generated SKU anyway (backend will validate)
+        return sku
+      }
+
+      attempts++
+    }
+
+    return null
+  }
+
+  const handleDuplicate = async (product: Product) => {
+    try {
+      setLoading(true)
+
+      // Generate new SKU
+      const newSKU = await generateSKU(product.name, product.categoryId)
+      
+      if (!newSKU) {
+        toast({
+          title: 'Error',
+          description: 'Gagal generate SKU baru. Silakan coba lagi.',
+          variant: 'destructive',
+        })
+        setLoading(false)
+        return
+      }
+
+      // Create duplicate product with new SKU and stock = 0
+      const response = await fetch('/api/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: `${product.name} (Copy)`,
+          sku: newSKU,
+          stock: 0,
+          minimalStock: product.minimalStock,
+          unit: product.unit,
+          purchasePrice: product.purchasePrice.toString(),
+          sellingPrice: product.sellingPrice.toString(),
+          photo: product.photo || undefined,
+          placement: product.placement || undefined,
+          categoryId: product.categoryId,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        toast({
+          title: 'Error',
+          description: data.error || 'Gagal menduplikasi produk',
+          variant: 'destructive',
+        })
+        setLoading(false)
+        return
+      }
+
+      toast({
+        title: 'Berhasil',
+        description: 'Produk berhasil diduplikasi dengan SKU baru',
+      })
+
+      fetchProducts()
+      router.refresh()
+    } catch (err) {
+      console.error('Error duplicating product:', err)
+      toast({
+        title: 'Error',
+        description: 'Terjadi kesalahan saat menduplikasi produk',
+        variant: 'destructive',
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Get low stock products
   const lowStockProducts = products.filter(p => p.stock <= p.minimalStock)
 
@@ -188,6 +303,7 @@ export default function ProductManagement() {
         products={products}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        onDuplicate={handleDuplicate}
       />
     </div>
   )

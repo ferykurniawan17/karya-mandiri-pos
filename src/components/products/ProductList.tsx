@@ -7,7 +7,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { Edit, Trash2 } from 'lucide-react'
+import { Edit, Trash2, Copy } from 'lucide-react'
 
 interface Category {
   id: string
@@ -35,9 +35,10 @@ interface ProductListProps {
   products: Product[]
   onEdit: (product: Product) => void
   onDelete: (id: string) => void
+  onDuplicate: (product: Product) => void
 }
 
-export default function ProductList({ products, onEdit, onDelete }: ProductListProps) {
+export default function ProductList({ products, onEdit, onDelete, onDuplicate }: ProductListProps) {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -125,6 +126,21 @@ export default function ProductList({ products, onEdit, onDelete }: ProductListP
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>Edit Produk</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => onDuplicate(product)}
+                      className="h-9 w-9"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Duplikat Produk</p>
                   </TooltipContent>
                 </Tooltip>
                 <Tooltip>
