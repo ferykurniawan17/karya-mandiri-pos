@@ -47,6 +47,7 @@ export async function PUT(
     const body = await request.json()
     const {
       name,
+      aliasName,
       sku,
       stock,
       minimalStock,
@@ -56,6 +57,8 @@ export async function PUT(
       photo,
       placement,
       categoryId,
+      brandId,
+      tagIds,
     } = body
 
     if (!name || !categoryId || !unit) {
@@ -65,9 +68,10 @@ export async function PUT(
       )
     }
 
-    // Get current product to preserve SKU
+    // Get current product to preserve SKU and handle tags update
     const currentProduct = await prisma.product.findUnique({
       where: { id: params.id },
+      include: { tags: true },
     })
 
     if (!currentProduct) {
@@ -100,6 +104,7 @@ export async function PUT(
       where: { id: params.id },
       data: {
         name,
+        aliasName: aliasName || undefined,
         sku: finalSku, // Keep existing SKU, don't allow changes
         stock: parseInt(stock) || 0,
         minimalStock: parseInt(minimalStock) || 0,
@@ -109,9 +114,17 @@ export async function PUT(
         photo: photo || undefined,
         placement: placement || undefined,
         categoryId,
+        brandId: brandId || null,
+        tags: {
+          set: tagIds && tagIds.length > 0 
+            ? tagIds.map((id: string) => ({ id }))
+            : [],
+        },
       },
       include: {
         category: true,
+        brand: true,
+        tags: true,
       },
     })
 

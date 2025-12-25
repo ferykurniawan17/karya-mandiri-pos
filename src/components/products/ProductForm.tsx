@@ -13,15 +13,28 @@ import {
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { RefreshCw } from 'lucide-react'
+import { MultiSelect } from '@/components/ui/multi-select'
 
 interface Category {
   id: string
   name: string
 }
 
+interface Tag {
+  id: string
+  name: string
+}
+
+interface Brand {
+  id: string
+  name: string
+  photo?: string
+}
+
 interface Product {
   id: string
   name: string
+  aliasName?: string
   sku?: string
   stock: number
   minimalStock: number
@@ -31,18 +44,24 @@ interface Product {
   photo?: string
   placement?: string
   categoryId: string
+  brandId?: string
+  tags?: Tag[]
+  brand?: Brand
 }
 
 interface ProductFormProps {
   product?: Product | null
   categories: Category[]
+  tags: Tag[]
+  brands: Brand[]
   onSave: () => void
   onCancel: () => void
 }
 
-export default function ProductForm({ product, categories, onSave, onCancel }: ProductFormProps) {
+export default function ProductForm({ product, categories, tags, brands, onSave, onCancel }: ProductFormProps) {
   const [formData, setFormData] = useState({
     name: '',
+    aliasName: '',
     sku: '',
     stock: '0',
     minimalStock: '0',
@@ -54,6 +73,8 @@ export default function ProductForm({ product, categories, onSave, onCancel }: P
     categoryId: '',
   })
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('')
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [selectedBrandId, setSelectedBrandId] = useState<string>('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string>('')
   const [error, setError] = useState('')
@@ -66,6 +87,7 @@ export default function ProductForm({ product, categories, onSave, onCancel }: P
       const categoryId = product.categoryId || ''
       setFormData({
         name: product.name,
+        aliasName: product.aliasName || '',
         sku: product.sku || '',
         stock: product.stock.toString(),
         minimalStock: product.minimalStock.toString(),
@@ -79,6 +101,8 @@ export default function ProductForm({ product, categories, onSave, onCancel }: P
       // Set selected category ID separately for Select component
       // Set immediately - Radix Select should handle this
       setSelectedCategoryId(categoryId)
+      setSelectedTags(product.tags ? product.tags.map(t => t.id) : [])
+      setSelectedBrandId(product.brandId || '')
       if (product.photo) {
         setPhotoPreview(product.photo)
       }
@@ -86,6 +110,7 @@ export default function ProductForm({ product, categories, onSave, onCancel }: P
       // Reset form when no product (new product)
       setFormData({
         name: '',
+        aliasName: '',
         sku: '',
         stock: '0',
         minimalStock: '0',
@@ -97,6 +122,8 @@ export default function ProductForm({ product, categories, onSave, onCancel }: P
         categoryId: '',
       })
       setSelectedCategoryId('')
+      setSelectedTags([])
+      setSelectedBrandId('')
       setPhotoPreview('')
       setPhotoFile(null)
     }
@@ -253,6 +280,8 @@ export default function ProductForm({ product, categories, onSave, onCancel }: P
         body: JSON.stringify({
           ...formData,
           categoryId: selectedCategoryId || formData.categoryId,
+          brandId: selectedBrandId || undefined,
+          tagIds: selectedTags,
           photo: photoUrl,
         }),
       })
@@ -299,6 +328,16 @@ export default function ProductForm({ product, categories, onSave, onCancel }: P
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="aliasName">Nama Lain (Opsional)</Label>
+            <Input
+              id="aliasName"
+              type="text"
+              value={formData.aliasName}
+              onChange={(e) => setFormData({ ...formData, aliasName: e.target.value })}
+              placeholder="Nama alternatif produk"
             />
           </div>
           <div className="space-y-2">
@@ -354,6 +393,38 @@ export default function ProductForm({ product, categories, onSave, onCancel }: P
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="brand">Brand (Opsional)</Label>
+            <Select
+              value={selectedBrandId && selectedBrandId !== '' ? selectedBrandId : undefined}
+              onValueChange={(value) => {
+                setSelectedBrandId(value)
+              }}
+            >
+              <SelectTrigger id="brand">
+                <SelectValue placeholder="Pilih Brand">
+                  {selectedBrandId && brands.find((b) => b.id === selectedBrandId)?.name}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {brands.map((brand) => (
+                  <SelectItem key={brand.id} value={brand.id}>
+                    {brand.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="tags">Tags (Opsional)</Label>
+            <MultiSelect
+              options={tags.map(t => ({ id: t.id, name: t.name }))}
+              selected={selectedTags}
+              onSelectionChange={setSelectedTags}
+              placeholder="Pilih tags..."
+              searchPlaceholder="Cari tags..."
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="unit">Satuan *</Label>

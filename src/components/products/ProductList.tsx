@@ -14,6 +14,12 @@ interface Category {
   name: string
 }
 
+interface Brand {
+  id: string
+  name: string
+  photo?: string
+}
+
 interface Product {
   id: string
   name: string
@@ -27,6 +33,7 @@ interface Product {
   placement?: string
   categoryId: string
   category: Category
+  brand?: Brand
   createdAt: Date
   updatedAt: Date
 }
@@ -80,7 +87,27 @@ export default function ProductList({ products, onEdit, onDelete, onDuplicate }:
             )}
             <div className="p-4">
               <div className="mb-2">
-                <h3 className="font-semibold text-gray-900">{product.name}</h3>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <h3 className="font-semibold text-gray-900 flex-1">{product.name}</h3>
+                  {product.brand?.photo && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="cursor-help">
+                            <img
+                              src={product.brand.photo}
+                              alt={product.brand.name}
+                              className="h-6 w-6 object-contain flex-shrink-0"
+                            />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{product.brand.name}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
                 {product.sku && (
                   <p className="text-sm text-gray-500">SKU: {product.sku}</p>
                 )}

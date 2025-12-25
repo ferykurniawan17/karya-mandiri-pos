@@ -15,10 +15,28 @@ export async function GET(request: NextRequest) {
       where.categoryId = categoryId
     }
 
+    const tagIds = searchParams.get('tagIds')?.split(',').filter(Boolean) || []
+    const brandIds = searchParams.get('brandIds')?.split(',').filter(Boolean) || []
+
+    // Build where clause for tags and brands
+    if (tagIds.length > 0) {
+      where.tags = {
+        some: {
+          id: { in: tagIds },
+        },
+      }
+    }
+
+    if (brandIds.length > 0) {
+      where.brandId = { in: brandIds }
+    }
+
     const products = await prisma.product.findMany({
       where,
       include: {
         category: true,
+        brand: true,
+        tags: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -28,12 +46,23 @@ export async function GET(request: NextRequest) {
     // Filter by search term (case-insensitive) if provided
     const filteredProducts = search
       ? products.filter(
-          (product) =>
-            product.name.toLowerCase().includes(search.toLowerCase()) ||
-            (product.sku &&
-              product.sku.toLowerCase().includes(search.toLowerCase())) ||
-            (product.placement &&
-              product.placement.toLowerCase().includes(search.toLowerCase()))
+          (product) => {
+            const lowerSearch = search.toLowerCase()
+            // Search by product name
+            const matchesName = product.name.toLowerCase().includes(lowerSearch)
+            // Search by alias name (nama lain)
+            const matchesAliasName = product.aliasName?.toLowerCase().includes(lowerSearch) || false
+            // Search by SKU
+            const matchesSku = product.sku?.toLowerCase().includes(lowerSearch) || false
+            // Search by placement
+            const matchesPlacement = product.placement?.toLowerCase().includes(lowerSearch) || false
+            // Search by tags
+            const matchesTags = product.tags?.some(tag => 
+              tag.name.toLowerCase().includes(lowerSearch)
+            ) || false
+            
+            return matchesName || matchesAliasName || matchesSku || matchesPlacement || matchesTags
+          }
         )
       : products
 
@@ -60,6 +89,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const {
       name,
+      aliasName,
       sku,
       stock,
       minimalStock,
@@ -69,6 +99,8 @@ export async function POST(request: NextRequest) {
       photo,
       placement,
       categoryId,
+      brandId,
+      tagIds,
     } = body
 
     if (!name || !categoryId || !unit) {
@@ -94,6 +126,7 @@ export async function POST(request: NextRequest) {
     const product = await prisma.product.create({
       data: {
         name,
+        aliasName: aliasName || undefined,
         sku: sku || undefined,
         stock: parseInt(stock) || 0,
         minimalStock: parseInt(minimalStock) || 0,
@@ -103,9 +136,15 @@ export async function POST(request: NextRequest) {
         photo: photo || undefined,
         placement: placement || undefined,
         categoryId,
+        brandId: brandId || undefined,
+        tags: tagIds && tagIds.length > 0 ? {
+          connect: tagIds.map((id: string) => ({ id })),
+        } : undefined,
       },
       include: {
         category: true,
+        brand: true,
+        tags: true,
       },
     })
 

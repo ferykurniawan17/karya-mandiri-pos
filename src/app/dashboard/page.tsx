@@ -62,6 +62,22 @@ export default async function DashboardPage() {
               <p className="text-gray-600">Riwayat transaksi</p>
             </Link>
 
+            <Link
+              href="/tags"
+              className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition-shadow"
+            >
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">Tags</h2>
+              <p className="text-gray-600">Kelola tag produk</p>
+            </Link>
+
+            <Link
+              href="/brands"
+              className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition-shadow"
+            >
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">Brands</h2>
+              <p className="text-gray-600">Kelola brand produk</p>
+            </Link>
+
             {user.role === 'admin' && (
               <Link
                 href="/users"
