@@ -58,3 +58,12 @@ export interface CartItem {
   subtotal: number
 }
 
+export interface POSSession {
+  id: string
+  customerName?: string
+  cart: CartItem[]
+  projectName: string
+  createdAt: Date
+  isActive: boolean
+}
+

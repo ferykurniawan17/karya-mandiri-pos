@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { CartItem } from "@/types";
+import { CartItem, POSSession } from "@/types";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import CheckoutDetail from "./CheckoutDetail";
+import { X } from "lucide-react";
 
 interface Product {
   id: string;
@@ -20,25 +21,68 @@ interface Product {
   };
 }
 
+const STORAGE_KEY = "pos_sessions";
+const LAST_ACTIVE_KEY = "pos_last_active_session";
+
 export default function POSInterface() {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [sessions, setSessions] = useState<POSSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [categories, setCategories] = useState<{ id: string; name: string }[]>(
     []
   );
-  const [projectName, setProjectName] = useState("");
   const [showCheckoutDetail, setShowCheckoutDetail] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [lastTransaction, setLastTransaction] = useState<any>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Initialize with default session or load from storage
+  useEffect(() => {
+    loadSessionsFromStorage();
+    fetchProducts();
+    fetchCategories();
+  }, []);
 
   useEffect(() => {
     fetchProducts();
-    fetchCategories();
   }, [search, categoryFilter]);
+
+  // Ensure at least one session exists and activeSessionId is valid (only after initialization)
+  useEffect(() => {
+    if (!isInitialized) {
+      return; // Don't create new session until we've tried loading from storage
+    }
+
+    if (sessions.length === 0) {
+      createNewSession();
+      return;
+    }
+    
+    // If activeSessionId is invalid or not set, switch to first session
+    if (!activeSessionId || !sessions.find((s) => s.id === activeSessionId)) {
+      const firstSession = sessions[0];
+      if (firstSession && activeSessionId !== firstSession.id) {
+        setActiveSessionId(firstSession.id);
+        setSessions((prev) =>
+          prev.map((s) => ({
+            ...s,
+            isActive: s.id === firstSession.id,
+          }))
+        );
+      }
+    }
+  }, [sessions.length, activeSessionId, isInitialized]);
+
+  // Auto-save sessions to localStorage
+  useEffect(() => {
+    if (sessions.length > 0) {
+      saveSessionsToStorage();
+    }
+  }, [sessions]);
 
   const fetchProducts = async () => {
     try {
@@ -69,16 +113,200 @@ export default function POSInterface() {
     }
   };
 
+  // LocalStorage functions
+  const saveSessionsToStorage = () => {
+    try {
+      const sessionsToSave = sessions.map((s) => ({
+        ...s,
+        createdAt: s.createdAt.toISOString(),
+      }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sessionsToSave));
+      if (activeSessionId) {
+        localStorage.setItem(LAST_ACTIVE_KEY, activeSessionId);
+      }
+    } catch (err) {
+      console.error("Error saving sessions to storage:", err);
+    }
+  };
+
+  const loadSessionsFromStorage = () => {
+    try {
+      const savedSessions = localStorage.getItem(STORAGE_KEY);
+      const lastActive = localStorage.getItem(LAST_ACTIVE_KEY);
+
+      if (savedSessions) {
+        const parsed = JSON.parse(savedSessions).map((s: any) => ({
+          ...s,
+          createdAt: new Date(s.createdAt),
+        })) as POSSession[];
+
+        if (parsed.length > 0) {
+          setSessions(parsed);
+          setActiveSessionId(lastActive || parsed[0].id);
+          setIsInitialized(true);
+          return; // Don't create new session if we loaded existing ones
+        }
+      }
+      
+      // Only create new session if no saved sessions found
+      createNewSession();
+      setIsInitialized(true);
+    } catch (err) {
+      console.error("Error loading sessions from storage:", err);
+      createNewSession();
+      setIsInitialized(true);
+    }
+  };
+
+  // Session management functions
+  const createNewSession = () => {
+    const newSession: POSSession = {
+      id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      cart: [],
+      projectName: "",
+      createdAt: new Date(),
+      isActive: true,
+    };
+
+    setSessions((prev) => {
+      const updated = prev.map((s) => ({ ...s, isActive: false }));
+      return [...updated, newSession];
+    });
+    setActiveSessionId(newSession.id);
+  };
+
+  const switchSession = (sessionId: string) => {
+    const sessionExists = sessions.find((s) => s.id === sessionId);
+    if (!sessionExists) {
+      // If session doesn't exist, switch to first available or create new
+      if (sessions.length > 0) {
+        setActiveSessionId(sessions[0].id);
+        setSessions((prev) =>
+          prev.map((s) => ({
+            ...s,
+            isActive: s.id === sessions[0].id,
+          }))
+        );
+      } else {
+        createNewSession();
+      }
+      return;
+    }
+    setSessions((prev) =>
+      prev.map((s) => ({
+        ...s,
+        isActive: s.id === sessionId,
+      }))
+    );
+    setActiveSessionId(sessionId);
+  };
+
+  const closeSession = (sessionId: string) => {
+    const session = sessions.find((s) => s.id === sessionId);
+    
+    // If only one tab exists, reset cart and projectName instead of closing
+    if (sessions.length === 1) {
+      if (session && session.cart.length > 0) {
+        if (
+          !confirm(
+            "Yakin ingin mengosongkan keranjang?"
+          )
+        ) {
+          return;
+        }
+      }
+      // Reset cart and projectName for the single session
+      updateActiveSession((session) => ({
+        ...session,
+        cart: [],
+        projectName: "",
+      }));
+      return;
+    }
+
+    // If multiple tabs exist, proceed with normal close logic
+    if (session && session.cart.length > 0) {
+      if (
+        !confirm(
+          "Tab ini memiliki item di keranjang. Yakin ingin menutup tab ini?"
+        )
+      ) {
+        return;
+      }
+    }
+
+    const remainingSessions = sessions.filter((s) => s.id !== sessionId);
+
+    if (remainingSessions.length === 0) {
+      // If all tabs closed, create a new one
+      createNewSession();
+    } else {
+      setSessions(remainingSessions);
+      // Switch to another session if closing active one
+      if (activeSessionId === sessionId) {
+        const nextSession = remainingSessions[0];
+        setActiveSessionId(nextSession.id);
+        switchSession(nextSession.id);
+      }
+    }
+  };
+
+  // Get active session helpers
+  const getActiveSession = (): POSSession | null => {
+    const session = sessions.find((s) => s.id === activeSessionId);
+    // Safety check: if activeSessionId doesn't match any session, use first session
+    if (!session && sessions.length > 0) {
+      // Update activeSessionId to first session (will trigger re-render)
+      if (activeSessionId !== sessions[0].id) {
+        setActiveSessionId(sessions[0].id);
+      }
+      return sessions[0];
+    }
+    return session || null;
+  };
+
+  const getActiveCart = (): CartItem[] => {
+    const active = getActiveSession();
+    return active?.cart || [];
+  };
+
+  const getActiveProjectName = (): string => {
+    const active = getActiveSession();
+    return active?.projectName || "";
+  };
+
+  // Update active session
+  const updateActiveSession = (updater: (session: POSSession) => POSSession) => {
+    setSessions((prev) =>
+      prev.map((s) => (s.id === activeSessionId ? updater(s) : s))
+    );
+  };
+
+  // Cart operations
   const addToCart = (product: Product) => {
-    const existingItem = cart.find((item) => item.product.id === product.id);
+    if (!activeSessionId) {
+      createNewSession();
+      return;
+    }
+
+    const activeCart = getActiveCart();
+    const existingItem = activeCart.find((item) => item.product.id === product.id);
+
+    // Check stock across all sessions
+    const totalInCarts = sessions.reduce((sum, session) => {
+      const item = session.cart.find((i) => i.product.id === product.id);
+      return sum + (item?.quantity || 0);
+    }, 0);
 
     if (existingItem) {
-      if (existingItem.quantity >= product.stock) {
+      // Check if adding 1 more would exceed stock
+      if (totalInCarts + 1 > product.stock) {
         alert("Stok tidak mencukupi");
         return;
       }
-      setCart(
-        cart.map((item) =>
+      updateActiveSession((session) => ({
+        ...session,
+        cart: session.cart.map((item) =>
           item.product.id === product.id
             ? {
                 ...item,
@@ -86,17 +314,25 @@ export default function POSInterface() {
                 subtotal: (item.quantity + 1) * Number(product.sellingPrice),
               }
             : item
-        )
-      );
+        ),
+      }));
     } else {
-      setCart([
-        ...cart,
-        {
-          product,
-          quantity: 1,
-          subtotal: Number(product.sellingPrice),
-        },
-      ]);
+      // Check if adding 1 new item would exceed stock
+      if (totalInCarts + 1 > product.stock) {
+        alert("Stok tidak mencukupi");
+        return;
+      }
+      updateActiveSession((session) => ({
+        ...session,
+        cart: [
+          ...session.cart,
+          {
+            product,
+            quantity: 1,
+            subtotal: Number(product.sellingPrice),
+          },
+        ],
+      }));
     }
   };
 
@@ -106,14 +342,29 @@ export default function POSInterface() {
       return;
     }
 
-    const item = cart.find((item) => item.product.id === productId);
-    if (item && quantity > item.product.stock) {
+    const activeCart = getActiveCart();
+    const item = activeCart.find((item) => item.product.id === productId);
+    if (!item) {
+      return;
+    }
+
+    // Check stock across all sessions (excluding current session's current quantity)
+    const totalInOtherSessions = sessions
+      .filter((s) => s.id !== activeSessionId)
+      .reduce((sum, session) => {
+        const sessionItem = session.cart.find((i) => i.product.id === productId);
+        return sum + (sessionItem?.quantity || 0);
+      }, 0);
+
+    // Check if new quantity + other sessions would exceed stock
+    if (quantity + totalInOtherSessions > item.product.stock) {
       alert("Stok tidak mencukupi");
       return;
     }
 
-    setCart(
-      cart.map((item) =>
+    updateActiveSession((session) => ({
+      ...session,
+      cart: session.cart.map((item) =>
         item.product.id === productId
           ? {
               ...item,
@@ -121,20 +372,32 @@ export default function POSInterface() {
               subtotal: quantity * Number(item.product.sellingPrice),
             }
           : item
-      )
-    );
+      ),
+    }));
   };
 
   const removeFromCart = (productId: string) => {
-    setCart(cart.filter((item) => item.product.id !== productId));
+    updateActiveSession((session) => ({
+      ...session,
+      cart: session.cart.filter((item) => item.product.id !== productId),
+    }));
+  };
+
+  const updateProjectName = (projectName: string) => {
+    updateActiveSession((session) => ({
+      ...session,
+      projectName,
+    }));
   };
 
   const getTotal = () => {
-    return cart.reduce((sum, item) => sum + item.subtotal, 0);
+    const activeCart = getActiveCart();
+    return activeCart.reduce((sum, item) => sum + item.subtotal, 0);
   };
 
   const handleContinue = () => {
-    if (cart.length === 0) {
+    const activeCart = getActiveCart();
+    if (activeCart.length === 0) {
       alert("Keranjang kosong");
       return;
     }
@@ -142,12 +405,10 @@ export default function POSInterface() {
   };
 
   const formatCurrency = (amount: number | string | any) => {
-    // Convert to number if it's a string or Decimal
     let numAmount: number;
     if (typeof amount === "string") {
       numAmount = parseFloat(amount) || 0;
     } else if (amount && typeof amount === "object" && "toNumber" in amount) {
-      // Handle Prisma Decimal type
       numAmount = parseFloat(amount.toString()) || 0;
     } else {
       numAmount = Number(amount) || 0;
@@ -161,8 +422,68 @@ export default function POSInterface() {
     }).format(numAmount);
   };
 
+  const getSessionDisplayName = (session: POSSession, index: number) => {
+    if (session.projectName && session.projectName.trim() !== "") {
+      return session.projectName;
+    }
+    return session.customerName || `Pelanggan ${index + 1}`;
+  };
+
+  const getItemCount = (session: POSSession) => {
+    return session.cart.reduce((sum, item) => sum + item.quantity, 0);
+  };
+
+  const activeCart = getActiveCart();
+  const activeProjectName = getActiveProjectName();
+
   return (
     <div className="px-4 py-6 sm:px-0">
+      {/* Tab Bar */}
+      <div className="bg-white rounded-lg shadow p-4 mb-6">
+        <div className="flex items-center gap-2 overflow-x-auto">
+          {sessions.map((session, index) => {
+            const itemCount = getItemCount(session);
+            const isActive = session.id === activeSessionId;
+            return (
+              <div
+                key={session.id}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 min-w-[120px] cursor-pointer transition-colors ${
+                  isActive
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-gray-200 bg-white hover:border-gray-300"
+                }`}
+                onClick={() => switchSession(session.id)}
+              >
+                <span className="text-sm font-medium truncate">
+                  {getSessionDisplayName(session, index)}
+                </span>
+                {itemCount > 0 && (
+                  <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">
+                    {itemCount}
+                  </span>
+                )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeSession(session.id);
+                  }}
+                  className="ml-1 text-gray-400 hover:text-red-600 transition-colors"
+                  disabled={showCheckoutDetail}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            );
+          })}
+          <button
+            onClick={createNewSession}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm whitespace-nowrap"
+          >
+            + Tab Baru
+          </button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Product Selection */}
         <div className="lg:col-span-2">
@@ -226,12 +547,12 @@ export default function POSInterface() {
           <div className="bg-white rounded-lg shadow p-6 sticky top-6">
             <h2 className="text-xl font-bold mb-4">Keranjang</h2>
 
-            {cart.length === 0 ? (
+            {activeCart.length === 0 ? (
               <p className="text-gray-500 text-center py-8">Keranjang kosong</p>
             ) : (
               <>
                 <div className="space-y-3 max-h-64 overflow-y-auto mb-4">
-                  {cart.map((item) => (
+                  {activeCart.map((item) => (
                     <div key={item.product.id} className="border-b pb-3">
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
@@ -286,8 +607,8 @@ export default function POSInterface() {
                     </label>
                     <input
                       type="text"
-                      value={projectName}
-                      onChange={(e) => setProjectName(e.target.value)}
+                      value={activeProjectName}
+                      onChange={(e) => updateProjectName(e.target.value)}
                       placeholder="Masukkan nama proyek"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
@@ -300,7 +621,7 @@ export default function POSInterface() {
 
                   <button
                     onClick={handleContinue}
-                    disabled={cart.length === 0}
+                    disabled={activeCart.length === 0}
                     className="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                   >
                     Lanjut
@@ -315,14 +636,23 @@ export default function POSInterface() {
       {/* Checkout Detail Modal */}
       {showCheckoutDetail && (
         <CheckoutDetail
-          cart={cart}
-          projectName={projectName}
+          cart={activeCart}
+          projectName={activeProjectName}
           total={getTotal()}
           onBack={() => setShowCheckoutDetail(false)}
           onSuccess={(transaction) => {
             setLastTransaction(transaction);
-            setCart([]);
-            setProjectName("");
+            // Remove active session after successful checkout
+            const remainingSessions = sessions.filter(
+              (s) => s.id !== activeSessionId
+            );
+            if (remainingSessions.length > 0) {
+              setSessions(remainingSessions);
+              setActiveSessionId(remainingSessions[0].id);
+              switchSession(remainingSessions[0].id);
+            } else {
+              createNewSession();
+            }
             setShowCheckoutDetail(false);
             setShowReceipt(true);
             fetchProducts();
