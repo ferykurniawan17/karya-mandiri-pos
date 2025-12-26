@@ -487,7 +487,7 @@ export default function POSInterface() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Product Selection */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-lg shadow p-6 max-h-[calc(100vh-200px)] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4">Pilih Produk</h2>
 
             <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -512,7 +512,7 @@ export default function POSInterface() {
               </select>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-96 overflow-y-auto">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {products.map((product) => (
                 <button
                   key={product.id}
@@ -524,7 +524,7 @@ export default function POSInterface() {
                     <img
                       src={product.photo}
                       alt={product.name}
-                      className="w-full h-24 object-cover rounded mb-2"
+                      className="w-full h-40 object-contain rounded mb-2 bg-gray-50"
                     />
                   )}
                   <p className="font-medium text-sm text-gray-900 truncate">
@@ -643,16 +643,28 @@ export default function POSInterface() {
           onSuccess={(transaction) => {
             setLastTransaction(transaction);
             // Remove active session after successful checkout
-            const remainingSessions = sessions.filter(
-              (s) => s.id !== activeSessionId
-            );
-            if (remainingSessions.length > 0) {
-              setSessions(remainingSessions);
-              setActiveSessionId(remainingSessions[0].id);
-              switchSession(remainingSessions[0].id);
-            } else {
-              createNewSession();
-            }
+            setSessions((prev) => {
+              const remaining = prev.filter((s) => s.id !== activeSessionId);
+              // If no sessions left, create a new one
+              if (remaining.length === 0) {
+                const newSession: POSSession = {
+                  id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  cart: [],
+                  projectName: "",
+                  createdAt: new Date(),
+                  isActive: true,
+                };
+                setActiveSessionId(newSession.id);
+                return [newSession];
+              }
+              // Switch to first remaining session
+              const firstSession = remaining[0];
+              setActiveSessionId(firstSession.id);
+              return remaining.map((s) => ({
+                ...s,
+                isActive: s.id === firstSession.id,
+              }));
+            });
             setShowCheckoutDetail(false);
             setShowReceipt(true);
             fetchProducts();
