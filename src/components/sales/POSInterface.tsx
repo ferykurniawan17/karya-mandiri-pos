@@ -644,9 +644,24 @@ export default function POSInterface() {
                             >
                               -
                             </button>
-                            <span className="w-8 text-center">
-                              {item.quantity}
-                            </span>
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => {
+                                const newQuantity = parseInt(e.target.value) || 1;
+                                if (newQuantity > 0) {
+                                  updateQuantity(item.product.id, newQuantity);
+                                }
+                              }}
+                              onBlur={(e) => {
+                                const value = parseInt(e.target.value);
+                                if (!value || value < 1) {
+                                  updateQuantity(item.product.id, 1);
+                                }
+                              }}
+                              className="w-12 text-center border border-gray-300 rounded px-1 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
                             <button
                               onClick={() =>
                                 updateQuantity(item.product.id, item.quantity + 1)
