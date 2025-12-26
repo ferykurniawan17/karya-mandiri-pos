@@ -20,6 +20,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import ProductForm from "./ProductForm";
 import ProductList from "./ProductList";
+import StockAdjustmentModal from "./StockAdjustmentModal";
 import { MultiSelect } from "@/components/ui/multi-select";
 
 interface Category {
@@ -56,6 +57,8 @@ export default function ProductManagement() {
   const [selectedBrandIds, setSelectedBrandIds] = useState<string[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [showAdjustStockModal, setShowAdjustStockModal] = useState(false);
+  const [adjustingProduct, setAdjustingProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -165,6 +168,16 @@ export default function ProductManagement() {
   const handleCancel = () => {
     setShowForm(false);
     setEditingProduct(null);
+  };
+
+  const handleAdjustStock = (product: Product) => {
+    setAdjustingProduct(product);
+    setShowAdjustStockModal(true);
+  };
+
+  const handleAdjustStockSuccess = () => {
+    fetchProducts();
+    router.refresh();
   };
 
   const generateSKU = async (
@@ -363,7 +376,18 @@ export default function ProductManagement() {
         onEdit={handleEdit}
         onDelete={handleDelete}
         onDuplicate={handleDuplicate}
+        onAdjustStock={handleAdjustStock}
       />
+
+      {adjustingProduct && (
+        <StockAdjustmentModal
+          product={adjustingProduct}
+          currentStock={adjustingProduct.stock}
+          open={showAdjustStockModal}
+          onOpenChange={setShowAdjustStockModal}
+          onSuccess={handleAdjustStockSuccess}
+        />
+      )}
     </div>
   );
 }
