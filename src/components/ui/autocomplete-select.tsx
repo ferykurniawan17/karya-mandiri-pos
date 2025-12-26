@@ -17,6 +17,7 @@ interface AutocompleteSelectProps {
   placeholder?: string;
   searchPlaceholder?: string;
   className?: string;
+  disabled?: boolean;
 }
 
 export function AutocompleteSelect({

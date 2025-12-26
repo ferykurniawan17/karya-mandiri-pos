@@ -43,6 +43,34 @@ model Brand {
   products  Product[]
 }
 
+model Customer {
+  id          String        @id @default(uuid())
+  name        String
+  type        String        // "individual" or "institution"
+  phone       String?
+  email       String?
+  address     String?
+  notes       String?
+  projects    Project[]
+  transactions Transaction[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Project {
+  id          String        @id @default(uuid())
+  name        String
+  customerId  String
+  customer    Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  isDefault   Boolean       @default(false)  // Default project untuk customer
+  description String?
+  transactions Transaction[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  @@unique([customerId, name])  // Nama project unique per customer
+}
+
 model Product {
   id              String            @id @default(uuid())
   name            String
@@ -66,17 +94,25 @@ model Product {
 }
 
 model Transaction {
-  id          String            @id @default(uuid())
-  invoiceNo   String            @unique
-  total       Decimal
-  cash        Decimal
-  change      Decimal
-  projectName String?
-  note        String?
-  userId      String
-  user        User              @relation(fields: [userId], references: [id])
-  items       TransactionItem[]
-  createdAt   DateTime          @default(now())
+  id            String            @id @default(uuid())
+  invoiceNo     String            @unique
+  total         Decimal
+  cash          Decimal           // Jumlah yang dibayar tunai
+  credit        Decimal           @default(0)  // Jumlah yang dihutang
+  change        Decimal           @default(0)
+  paymentStatus String            @default("paid")  // "paid", "unpaid", "partial"
+  paymentMethod String?           // "cash", "transfer", "credit", "mixed"
+  customerId    String?
+  customer      Customer?         @relation(fields: [customerId], references: [id])
+  projectId     String?
+  project       Project?          @relation(fields: [projectId], references: [id])
+  projectName   String?           // Keep for backward compatibility
+  note          String?
+  userId        String
+  user          User              @relation(fields: [userId], references: [id])
+  items         TransactionItem[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @default(now()) @updatedAt
 }
 
 model TransactionItem {

@@ -2,7 +2,7 @@
   "name": "pos-karya-mandiri",
   "version": "1.0.0",
   "description": "POS Desktop App untuk Bahan Bangunan",
-  "main": "electron/main.js",
+  "main": "electron/dist/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,6 +10,8 @@
     "electron": "tsc -p electron/tsconfig.json && electron electron/dist/main.js",
     "electron:dev": "concurrently \"yarn dev\" \"wait-on http://localhost:3000 && yarn electron\"",
     "electron:build": "yarn build && prisma generate && tsc -p electron/tsconfig.json && electron-builder",
+    "electron:build:win": "yarn build && prisma generate && tsc -p electron/tsconfig.json && electron-builder --win",
+    "electron:build:mac": "yarn build && prisma generate && tsc -p electron/tsconfig.json && electron-builder --mac",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
     "db:init": "tsx scripts/init-db.ts",
@@ -73,29 +75,45 @@
       ".next/**/*",
       "node_modules/**/*",
       "public/**/*",
-      "prisma/**/*",
+      "prisma/schema.prisma",
       "package.json"
     ],
     "extraResources": [
       {
         "from": "prisma/schema.prisma",
         "to": "prisma/schema.prisma"
-      },
-      {
-        "from": "prisma/pos-template.db",
-        "to": "prisma/pos-template.db",
-        "filter": [
-          "prisma/pos-template.db"
-        ]
       }
     ],
+    "nodeGypRebuild": false,
+    "buildDependenciesFromSource": false,
+    "mac": {
+      "target": "dmg",
+      "icon": "build/icon.icns",
+      "category": "public.app-category.business"
+    },
     "win": {
-      "target": "nsis",
-      "icon": "build/icon.ico"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "POS Karya Mandiri"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Office"
     }
   }
 }

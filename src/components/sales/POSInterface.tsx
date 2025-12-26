@@ -2,25 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { CartItem, POSSession } from "@/types";
+import { CartItem, POSSession, Customer, Project, Product } from "@/types";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import CheckoutDetail from "./CheckoutDetail";
 import { PriceEditModal } from "@/components/ui/price-edit-modal";
+import { AutocompleteSelect } from "@/components/ui/autocomplete-select";
 import { X, Pencil } from "lucide-react";
-
-interface Product {
-  id: string;
-  name: string;
-  sku?: string;
-  stock: number;
-  unit: string;
-  sellingPrice: number;
-  photo?: string;
-  category: {
-    id: string;
-    name: string;
-  };
-}
 
 const STORAGE_KEY = "pos_sessions";
 const LAST_ACTIVE_KEY = "pos_last_active_session";
@@ -35,6 +22,8 @@ export default function POSInterface() {
   const [categories, setCategories] = useState<{ id: string; name: string }[]>(
     []
   );
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [showCheckoutDetail, setShowCheckoutDetail] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
@@ -47,6 +36,7 @@ export default function POSInterface() {
     loadSessionsFromStorage();
     fetchProducts();
     fetchCategories();
+    fetchCustomers();
   }, []);
 
   useEffect(() => {
@@ -96,7 +86,22 @@ export default function POSInterface() {
       const response = await fetch(url);
       const data = await response.json();
       if (response.ok) {
-        setProducts(data.products.filter((p: Product) => p.stock > 0));
+        // Filter and ensure all required Product fields are present
+        const validProducts = data.products.filter((p: any) => 
+          p.stock > 0 && 
+          p.id && 
+          p.name && 
+          p.stock !== undefined && 
+          p.minimalStock !== undefined && 
+          p.unit && 
+          p.purchasePrice !== undefined && 
+          p.sellingPrice !== undefined && 
+          p.categoryId && 
+          p.category &&
+          p.createdAt &&
+          p.updatedAt
+        ) as Product[];
+        setProducts(validProducts);
       }
     } catch (err) {
       console.error("Error fetching products:", err);
@@ -112,6 +117,30 @@ export default function POSInterface() {
       }
     } catch (err) {
       console.error("Error fetching categories:", err);
+    }
+  };
+
+  const fetchCustomers = async () => {
+    try {
+      const response = await fetch("/api/customers");
+      const data = await response.json();
+      if (response.ok) {
+        setCustomers(data.customers);
+      }
+    } catch (err) {
+      console.error("Error fetching customers:", err);
+    }
+  };
+
+  const fetchProjects = async (customerId: string) => {
+    try {
+      const response = await fetch(`/api/customers/${customerId}/projects`);
+      const data = await response.json();
+      if (response.ok) {
+        setProjects(data.projects);
+      }
+    } catch (err) {
+      console.error("Error fetching projects:", err);
     }
   };
 
@@ -166,6 +195,8 @@ export default function POSInterface() {
       id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       cart: [],
       projectName: "",
+      customerId: undefined,
+      projectId: undefined,
       createdAt: new Date(),
       isActive: true,
     };
@@ -277,6 +308,65 @@ export default function POSInterface() {
     return active?.projectName || "";
   };
 
+  const getActiveCustomerId = (): string | undefined => {
+    const active = getActiveSession();
+    return active?.customerId;
+  };
+
+  const getActiveProjectId = (): string | undefined => {
+    const active = getActiveSession();
+    return active?.projectId;
+  };
+
+  const updateCustomer = async (customerId: string | undefined) => {
+    updateActiveSession((session) => {
+      const updated = {
+        ...session,
+        customerId,
+        projectId: undefined, // Reset project when customer changes
+      };
+      
+      // If customer selected, fetch projects and auto-select default
+      if (customerId) {
+        fetchProjects(customerId).then(() => {
+          // Auto-select default project after projects are loaded
+          // This will be handled in useEffect
+        });
+      } else {
+        setProjects([]);
+      }
+      
+      return updated;
+    });
+  };
+
+  // Auto-select default project when projects are loaded and customer is selected
+  useEffect(() => {
+    const activeCustomerId = getActiveCustomerId();
+    if (activeCustomerId && projects.length > 0) {
+      const defaultProject = projects.find((p) => p.isDefault && p.customerId === activeCustomerId);
+      const currentProjectId = getActiveProjectId();
+      if (defaultProject && !currentProjectId) {
+        updateActiveSession((session) => ({
+          ...session,
+          projectId: defaultProject.id,
+          projectName: defaultProject.name,
+        }));
+      }
+    }
+  }, [projects, activeSessionId]);
+
+  const updateProject = (projectId: string | undefined) => {
+    updateActiveSession((session) => {
+      const selectedProject = projects.find((p) => p.id === projectId);
+      return {
+        ...session,
+        projectId,
+        projectName: selectedProject?.name || session.projectName,
+      };
+    });
+  };
+
   // Update active session
   const updateActiveSession = (updater: (session: POSSession) => POSSession) => {
     setSessions((prev) =>
@@ -331,15 +421,16 @@ export default function POSInterface() {
         alert("Stok tidak mencukupi");
         return;
       }
+      const newCartItem: CartItem = {
+        product,
+        quantity: 1,
+        subtotal: Number(product.sellingPrice),
+      };
       updateActiveSession((session) => ({
         ...session,
         cart: [
           ...session.cart,
-          {
-            product,
-            quantity: 1,
-            subtotal: Number(product.sellingPrice),
-          },
+          newCartItem,
         ],
       }));
     }
@@ -683,16 +774,56 @@ export default function POSInterface() {
                 <div className="border-t pt-4 space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Nama Proyek (Opsional)
+                      Pelanggan (Opsional)
                     </label>
-                    <input
-                      type="text"
-                      value={activeProjectName}
-                      onChange={(e) => updateProjectName(e.target.value)}
-                      placeholder="Masukkan nama proyek"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    <AutocompleteSelect
+                      options={customers.map((c) => ({ id: c.id, name: c.name }))}
+                      value={getActiveCustomerId()}
+                      onValueChange={(customerId) => {
+                        updateCustomer(customerId);
+                        if (customerId) {
+                          fetchProjects(customerId);
+                        } else {
+                          setProjects([]);
+                          updateProject(undefined);
+                        }
+                      }}
+                      placeholder="Pilih pelanggan..."
+                      searchPlaceholder="Cari pelanggan..."
+                      className="w-full"
                     />
                   </div>
+
+                  {getActiveCustomerId() && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Proyek
+                      </label>
+                      <AutocompleteSelect
+                        options={projects.map((p) => ({ id: p.id, name: p.name }))}
+                        value={getActiveProjectId()}
+                        onValueChange={updateProject}
+                        placeholder="Pilih proyek..."
+                        searchPlaceholder="Cari proyek..."
+                        className="w-full"
+                      />
+                    </div>
+                  )}
+
+                  {!getActiveCustomerId() && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Nama Proyek (Opsional)
+                      </label>
+                      <input
+                        type="text"
+                        value={activeProjectName}
+                        onChange={(e) => updateProjectName(e.target.value)}
+                        placeholder="Masukkan nama proyek"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  )}
 
                   <div className="flex justify-between text-lg font-bold">
                     <span>Total:</span>

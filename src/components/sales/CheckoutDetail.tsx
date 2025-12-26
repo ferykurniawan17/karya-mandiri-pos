@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ import { CartItem } from "@/types";
 
 interface CheckoutDetailProps {
   cart: CartItem[];
+  customerId?: string;
+  projectId?: string;
   projectName: string;
   total: number;
   onBack: () => void;
@@ -25,6 +27,8 @@ interface CheckoutDetailProps {
 
 export default function CheckoutDetail({
   cart,
+  customerId,
+  projectId,
   projectName,
   total,
   onBack,
@@ -33,6 +37,9 @@ export default function CheckoutDetail({
   const router = useRouter();
   const [note, setNote] = useState("");
   const [cash, setCash] = useState("");
+  const [credit, setCredit] = useState("");
+  const [paymentType, setPaymentType] = useState<"paid" | "unpaid" | "partial">("paid");
+  const [paymentMethod, setPaymentMethod] = useState<string>("cash");
   const [itemStatuses, setItemStatuses] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
@@ -54,16 +61,49 @@ export default function CheckoutDetail({
     }).format(numAmount);
   };
 
+  // Auto-calculate credit and cash based on payment type
+  useEffect(() => {
+    const cashAmount = parseFloat(cash) || 0;
+    if (paymentType === "paid") {
+      setCredit("0");
+      if (cashAmount < total) {
+        setCash(total.toString());
+      }
+    } else if (paymentType === "unpaid") {
+      setCash("0");
+      setCredit(total.toString());
+    } else if (paymentType === "partial") {
+      const creditAmount = total - cashAmount;
+      setCredit(creditAmount > 0 ? creditAmount.toString() : "0");
+    }
+  }, [paymentType, total, cash]);
+
   const getChange = () => {
     const cashAmount = parseFloat(cash) || 0;
-    return cashAmount - total;
+    if (paymentType === "paid" && cashAmount >= total) {
+      return cashAmount - total;
+    }
+    return 0;
+  };
+
+  const getCredit = () => {
+    const cashAmount = parseFloat(cash) || 0;
+    const creditAmount = parseFloat(credit) || 0;
+    return creditAmount;
   };
 
   const handleCheckout = async () => {
     const cashAmount = parseFloat(cash) || 0;
+    const creditAmount = parseFloat(credit) || 0;
 
-    if (cashAmount < total) {
-      alert("Jumlah pembayaran kurang");
+    // Validate payment
+    if (cashAmount + creditAmount !== total) {
+      alert("Jumlah pembayaran (tunai + hutang) harus sama dengan total");
+      return;
+    }
+
+    if (cashAmount < 0 || creditAmount < 0) {
+      alert("Jumlah pembayaran tidak valid");
       return;
     }
 
@@ -83,7 +123,12 @@ export default function CheckoutDetail({
             status: itemStatuses[item.product.id] || undefined,
           })),
           cash: cashAmount,
+          credit: creditAmount,
+          customerId: customerId || undefined,
+          projectId: projectId || undefined,
           projectName: projectName || undefined,
+          paymentStatus: paymentType,
+          paymentMethod: paymentMethod || undefined,
           note: note || undefined,
         }),
       });
@@ -200,31 +245,124 @@ export default function CheckoutDetail({
               <span>{formatCurrency(total)}</span>
             </div>
 
+            {/* Payment Type Selection */}
             <div className="mb-4">
-              <Label htmlFor="cash">Jumlah Bayar *</Label>
-              <CurrencyInput
-                id="cash"
-                value={cash || "0"}
-                onChange={(value) => setCash(value)}
-                placeholder="Rp 0"
-                className="mt-1"
-              />
+              <Label>Tipe Pembayaran *</Label>
+              <Select
+                value={paymentType}
+                onValueChange={(value: "paid" | "unpaid" | "partial") => {
+                  setPaymentType(value);
+                  if (value === "paid") {
+                    setCash(total.toString());
+                    setCredit("0");
+                  } else if (value === "unpaid") {
+                    setCash("0");
+                    setCredit(total.toString());
+                  } else {
+                    setCash("0");
+                    setCredit(total.toString());
+                  }
+                }}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="paid">Lunas</SelectItem>
+                  <SelectItem value="unpaid">Hutang</SelectItem>
+                  <SelectItem value="partial">Cicilan</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
-            {cash && parseFloat(cash || "0") > 0 && (
-              <div className="flex justify-between mb-4">
-                <span>Kembalian:</span>
-                <span
-                  className={
-                    getChange() < 0
-                      ? "text-red-600"
-                      : "text-green-600 font-semibold"
-                  }
-                >
-                  {formatCurrency(getChange())}
-                </span>
+            {/* Payment Method */}
+            <div className="mb-4">
+              <Label>Metode Pembayaran</Label>
+              <Select
+                value={paymentMethod}
+                onValueChange={setPaymentMethod}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Tunai</SelectItem>
+                  <SelectItem value="transfer">Transfer</SelectItem>
+                  <SelectItem value="credit">Kredit</SelectItem>
+                  <SelectItem value="mixed">Campuran</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Cash Input */}
+            {paymentType !== "unpaid" && (
+              <div className="mb-4">
+                <Label htmlFor="cash">Jumlah Tunai *</Label>
+                <CurrencyInput
+                  id="cash"
+                  value={cash || "0"}
+                  onChange={(value) => {
+                    setCash(value);
+                    if (paymentType === "partial") {
+                      const cashAmount = parseFloat(value) || 0;
+                      const creditAmount = total - cashAmount;
+                      setCredit(creditAmount > 0 ? creditAmount.toString() : "0");
+                    }
+                  }}
+                  placeholder="Rp 0"
+                  className="mt-1"
+                />
               </div>
             )}
+
+            {/* Credit Display/Input */}
+            {paymentType !== "paid" && (
+              <div className="mb-4">
+                <Label htmlFor="credit">Jumlah Hutang</Label>
+                <CurrencyInput
+                  id="credit"
+                  value={credit || "0"}
+                  onChange={(value) => {
+                    setCredit(value);
+                    if (paymentType === "partial") {
+                      const creditAmount = parseFloat(value) || 0;
+                      const cashAmount = total - creditAmount;
+                      setCash(cashAmount > 0 ? cashAmount.toString() : "0");
+                    }
+                  }}
+                  placeholder="Rp 0"
+                  className="mt-1"
+                  disabled={paymentType === "unpaid"}
+                />
+              </div>
+            )}
+
+            {/* Payment Summary */}
+            <div className="mb-4 space-y-2 p-3 bg-gray-50 rounded">
+              <div className="flex justify-between text-sm">
+                <span>Tunai:</span>
+                <span>{formatCurrency(parseFloat(cash) || 0)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Hutang:</span>
+                <span>{formatCurrency(parseFloat(credit) || 0)}</span>
+              </div>
+              <div className="flex justify-between font-semibold border-t pt-2">
+                <span>Total:</span>
+                <span>{formatCurrency((parseFloat(cash) || 0) + (parseFloat(credit) || 0))}</span>
+              </div>
+              {paymentType === "paid" && getChange() > 0 && (
+                <div className="flex justify-between text-sm text-green-600">
+                  <span>Kembalian:</span>
+                  <span>{formatCurrency(getChange())}</span>
+                </div>
+              )}
+              {(parseFloat(cash) || 0) + (parseFloat(credit) || 0) !== total && (
+                <div className="text-red-500 text-xs">
+                  Jumlah pembayaran harus sama dengan total
+                </div>
+              )}
+            </div>
 
             <div className="flex space-x-4">
               <Button
@@ -237,7 +375,10 @@ export default function CheckoutDetail({
               </Button>
               <Button
                 onClick={handleCheckout}
-                disabled={loading || getChange() < 0 || !cash || parseFloat(cash) === 0}
+                disabled={
+                  loading ||
+                  (parseFloat(cash) || 0) + (parseFloat(credit) || 0) !== total
+                }
                 className="flex-1"
               >
                 {loading ? "Memproses..." : "Checkout"}

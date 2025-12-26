@@ -7,8 +7,47 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
+    const customerId = searchParams.get('customerId')
+    const projectId = searchParams.get('projectId')
+    const paymentStatus = searchParams.get('paymentStatus')
+    const startDate = searchParams.get('startDate')
+    const endDate = searchParams.get('endDate')
+    const search = searchParams.get('search')
+
+    const where: any = {}
+
+    if (customerId) {
+      where.customerId = customerId
+    }
+
+    if (projectId) {
+      where.projectId = projectId
+    }
+
+    if (paymentStatus) {
+      where.paymentStatus = paymentStatus
+    }
+
+    if (startDate || endDate) {
+      where.createdAt = {}
+      if (startDate) {
+        where.createdAt.gte = new Date(startDate)
+      }
+      if (endDate) {
+        // Add one day to include the entire end date
+        const end = new Date(endDate)
+        end.setDate(end.getDate() + 1)
+        where.createdAt.lt = end
+      }
+    }
+
+    if (search) {
+      // SQLite doesn't support case-insensitive mode
+      where.invoiceNo = { contains: search }
+    }
 
     const transactions = await prisma.transaction.findMany({
+      where,
       take: limit,
       skip: offset,
       include: {
@@ -19,6 +58,8 @@ export async function GET(request: NextRequest) {
             username: true,
           },
         },
+        customer: true,
+        project: true,
         items: {
           include: {
             product: {
@@ -34,7 +75,7 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    const total = await prisma.transaction.count()
+    const total = await prisma.transaction.count({ where })
 
     return NextResponse.json({
       transactions,
@@ -62,7 +103,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { items, cash, projectName, note } = body
+    const { 
+      items, 
+      cash, 
+      credit, 
+      customerId, 
+      projectId, 
+      projectName, 
+      paymentStatus, 
+      paymentMethod, 
+      note 
+    } = body
 
     if (!items || items.length === 0) {
       return NextResponse.json(
@@ -71,7 +122,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!cash || cash < 0) {
+    // Validate payment amounts
+    const cashAmount = Number(cash) || 0
+    const creditAmount = Number(credit) || 0
+
+    if (cashAmount < 0 || creditAmount < 0) {
       return NextResponse.json(
         { error: 'Jumlah pembayaran tidak valid' },
         { status: 400 }
@@ -117,14 +172,58 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    if (cash < total) {
+    // Validate payment: cash + credit must equal total
+    if (cashAmount + creditAmount !== total) {
       return NextResponse.json(
-        { error: 'Jumlah pembayaran kurang' },
+        { error: 'Jumlah pembayaran (tunai + hutang) harus sama dengan total' },
         { status: 400 }
       )
     }
 
-    const change = Number(cash) - total
+    // Auto-calculate payment status if not provided
+    let finalPaymentStatus = paymentStatus
+    if (!finalPaymentStatus) {
+      if (cashAmount === total) {
+        finalPaymentStatus = 'paid'
+      } else if (cashAmount === 0) {
+        finalPaymentStatus = 'unpaid'
+      } else {
+        finalPaymentStatus = 'partial'
+      }
+    }
+
+    // Calculate change (only if paid fully with cash)
+    const change = finalPaymentStatus === 'paid' && cashAmount > total 
+      ? cashAmount - total 
+      : 0
+
+    // Validate customer and project relationship
+    let finalProjectId = projectId
+    if (customerId && !projectId) {
+      // Auto-select default project if customer is selected but project is not
+      const defaultProject = await prisma.project.findFirst({
+        where: {
+          customerId,
+          isDefault: true,
+        },
+      })
+      if (defaultProject) {
+        finalProjectId = defaultProject.id
+      }
+    }
+
+    if (customerId && finalProjectId) {
+      // Verify project belongs to customer
+      const project = await prisma.project.findUnique({
+        where: { id: finalProjectId },
+      })
+      if (!project || project.customerId !== customerId) {
+        return NextResponse.json(
+          { error: 'Proyek tidak sesuai dengan pelanggan yang dipilih' },
+          { status: 400 }
+        )
+      }
+    }
 
     // Generate invoice number
     const invoiceNo = `INV-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
@@ -134,9 +233,14 @@ export async function POST(request: NextRequest) {
       data: {
         invoiceNo,
         total,
-        cash: Number(cash),
+        cash: cashAmount,
+        credit: creditAmount,
         change,
-        projectName: projectName || null,
+        paymentStatus: finalPaymentStatus,
+        paymentMethod: paymentMethod || null,
+        customerId: customerId || null,
+        projectId: finalProjectId || null,
+        projectName: projectName || null, // Keep for backward compatibility
         note: note || null,
         userId: user.id,
         items: {
@@ -151,6 +255,8 @@ export async function POST(request: NextRequest) {
             username: true,
           },
         },
+        customer: true,
+        project: true,
         items: {
           include: {
             product: {

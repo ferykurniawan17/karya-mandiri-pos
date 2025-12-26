@@ -1,13 +1,32 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { AutocompleteSelect } from '@/components/ui/autocomplete-select'
+import { Customer, Project } from '@/types'
 
 interface Transaction {
   id: string
   invoiceNo: string
   total: number
   cash: number
+  credit: number
   change: number
+  paymentStatus: string
+  paymentMethod?: string
+  customer?: Customer
+  project?: Project
+  projectName?: string
+  note?: string
   user: {
     name: string
   }
@@ -19,6 +38,7 @@ interface Transaction {
     quantity: number
     price: number
     subtotal: number
+    status?: string
   }[]
   createdAt: Date
 }
@@ -27,14 +47,72 @@ export default function TransactionHistory() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
+  
+  // Filters
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>()
+  const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>()
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all')
+  const [startDate, setStartDate] = useState<string>('')
+  const [endDate, setEndDate] = useState<string>('')
+  const [search, setSearch] = useState<string>('')
 
   useEffect(() => {
+    fetchCustomers()
     fetchTransactions()
   }, [])
 
-  const fetchTransactions = async () => {
+  useEffect(() => {
+    fetchTransactions()
+  }, [selectedCustomerId, selectedProjectId, paymentStatusFilter, startDate, endDate, search])
+
+  useEffect(() => {
+    if (selectedCustomerId) {
+      fetchProjectsForCustomer(selectedCustomerId)
+    } else {
+      setProjects([])
+      setSelectedProjectId(undefined)
+    }
+  }, [selectedCustomerId])
+
+  const fetchCustomers = async () => {
     try {
-      const response = await fetch('/api/transactions?limit=100')
+      const response = await fetch('/api/customers')
+      const data = await response.json()
+      if (response.ok) {
+        setCustomers(data.customers)
+      }
+    } catch (err) {
+      console.error('Error fetching customers:', err)
+    }
+  }
+
+  const fetchProjectsForCustomer = async (customerId: string) => {
+    try {
+      const response = await fetch(`/api/customers/${customerId}/projects`)
+      const data = await response.json()
+      if (response.ok) {
+        setProjects(data.projects)
+      }
+    } catch (err) {
+      console.error('Error fetching projects:', err)
+    }
+  }
+
+  const fetchTransactions = async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (selectedCustomerId) params.append('customerId', selectedCustomerId)
+      if (selectedProjectId) params.append('projectId', selectedProjectId)
+      if (paymentStatusFilter !== 'all') params.append('paymentStatus', paymentStatusFilter)
+      if (startDate) params.append('startDate', startDate)
+      if (endDate) params.append('endDate', endDate)
+      if (search) params.append('search', search)
+      params.append('limit', '100')
+
+      const response = await fetch(`/api/transactions?${params.toString()}`)
       const data = await response.json()
       if (response.ok) {
         setTransactions(data.transactions)
@@ -46,15 +124,43 @@ export default function TransactionHistory() {
     }
   }
 
+  const resetFilters = () => {
+    setSelectedCustomerId(undefined)
+    setSelectedProjectId(undefined)
+    setPaymentStatusFilter('all')
+    setStartDate('')
+    setEndDate('')
+    setSearch('')
+  }
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
       currency: 'IDR',
       minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     }).format(amount)
   }
 
-  if (loading) {
+  const getPaymentStatusBadge = (status: string) => {
+    const styles = {
+      paid: 'bg-green-100 text-green-800',
+      unpaid: 'bg-red-100 text-red-800',
+      partial: 'bg-yellow-100 text-yellow-800',
+    }
+    const labels = {
+      paid: 'Lunas',
+      unpaid: 'Hutang',
+      partial: 'Cicilan',
+    }
+    return (
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${styles[status as keyof typeof styles] || 'bg-gray-100 text-gray-800'}`}>
+        {labels[status as keyof typeof labels] || status}
+      </span>
+    )
+  }
+
+  if (loading && transactions.length === 0) {
     return (
       <div className="text-center py-8">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
@@ -65,49 +171,223 @@ export default function TransactionHistory() {
 
   return (
     <div className="px-4 py-6 sm:px-0">
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <h3 className="text-lg font-semibold mb-4">Filter Transaksi</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div>
+            <Label>Pelanggan</Label>
+            <AutocompleteSelect
+              options={customers.map((c) => ({ id: c.id, name: c.name }))}
+              value={selectedCustomerId}
+              onValueChange={(value) => {
+                setSelectedCustomerId(value)
+                setSelectedProjectId(undefined)
+              }}
+              placeholder="Semua pelanggan..."
+              searchPlaceholder="Cari pelanggan..."
+              className="mt-1"
+            />
+          </div>
+
+          <div>
+            <Label>Proyek</Label>
+            <AutocompleteSelect
+              options={projects.map((p) => ({ id: p.id, name: p.name }))}
+              value={selectedProjectId}
+              onValueChange={setSelectedProjectId}
+              placeholder="Semua proyek..."
+              searchPlaceholder="Cari proyek..."
+              className="mt-1"
+              disabled={!selectedCustomerId}
+            />
+          </div>
+
+          <div>
+            <Label>Status Pembayaran</Label>
+            <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
+              <SelectTrigger className="mt-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Status</SelectItem>
+                <SelectItem value="paid">Lunas</SelectItem>
+                <SelectItem value="unpaid">Hutang</SelectItem>
+                <SelectItem value="partial">Cicilan</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>Tanggal Mulai</Label>
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="mt-1"
+            />
+          </div>
+
+          <div>
+            <Label>Tanggal Akhir</Label>
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="mt-1"
+            />
+          </div>
+
+          <div>
+            <Label>Cari Invoice</Label>
+            <Input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="No. Invoice..."
+              className="mt-1"
+            />
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <Button variant="outline" onClick={resetFilters}>
+            Reset Filter
+          </Button>
+        </div>
+      </div>
+
+      {/* Transactions Table */}
       <div className="bg-white shadow overflow-hidden sm:rounded-md">
         {transactions.length === 0 ? (
           <div className="px-6 py-8 text-center text-gray-500">
-            Belum ada transaksi
+            {loading ? 'Memuat...' : 'Tidak ada transaksi yang sesuai dengan filter'}
           </div>
         ) : (
-          <ul className="divide-y divide-gray-200">
-            {transactions.map((transaction) => (
-              <li key={transaction.id} className="px-6 py-4 hover:bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">
-                      {transaction.invoiceNo}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {new Date(transaction.createdAt).toLocaleString('id-ID')} • {transaction.user.name}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      {transaction.items.length} item
-                    </p>
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <p className="text-sm font-semibold text-gray-900">
-                      {formatCurrency(transaction.total)}
-                    </p>
-                    <button
-                      onClick={() => setSelectedTransaction(transaction)}
-                      className="text-indigo-600 hover:text-indigo-900 text-sm font-medium"
-                    >
-                      Detail
-                    </button>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Invoice
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Tanggal
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Pelanggan
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Proyek
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Total
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Tunai
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Hutang
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Metode
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Kasir
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Aksi
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {transactions.map((transaction) => (
+                  <tr key={transaction.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                        {transaction.invoiceNo}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">
+                        {new Date(transaction.createdAt).toLocaleDateString('id-ID')}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {new Date(transaction.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {transaction.customer?.name || '-'}
+                      </div>
+                      {transaction.customer && (
+                        <div className="text-xs text-gray-500">
+                          {transaction.customer.type === 'individual' ? 'Perorangan' : 'Instansi'}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">
+                        {transaction.project?.name || transaction.projectName || '-'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-semibold text-gray-900">
+                        {formatCurrency(transaction.total)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">
+                        {formatCurrency(transaction.cash)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">
+                        {formatCurrency(transaction.credit)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {getPaymentStatusBadge(transaction.paymentStatus)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">
+                        {transaction.paymentMethod ? (
+                          transaction.paymentMethod === 'cash' ? 'Tunai' :
+                          transaction.paymentMethod === 'transfer' ? 'Transfer' :
+                          transaction.paymentMethod === 'credit' ? 'Kredit' :
+                          transaction.paymentMethod === 'mixed' ? 'Campuran' :
+                          transaction.paymentMethod
+                        ) : '-'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">
+                        {transaction.user.name}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <button
+                        onClick={() => setSelectedTransaction(transaction)}
+                        className="text-indigo-600 hover:text-indigo-900"
+                      >
+                        Detail
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
       {/* Detail Modal */}
       {selectedTransaction && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <h2 className="text-2xl font-bold mb-4">Detail Transaksi</h2>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
@@ -122,13 +402,49 @@ export default function TransactionHistory() {
                 <span>Kasir:</span>
                 <span>{selectedTransaction.user.name}</span>
               </div>
+              {selectedTransaction.customer && (
+                <div className="flex justify-between">
+                  <span>Pelanggan:</span>
+                  <span>{selectedTransaction.customer.name} ({selectedTransaction.customer.type === 'individual' ? 'Perorangan' : 'Instansi'})</span>
+                </div>
+              )}
+              {(selectedTransaction.project || selectedTransaction.projectName) && (
+                <div className="flex justify-between">
+                  <span>Proyek:</span>
+                  <span>{selectedTransaction.project?.name || selectedTransaction.projectName}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span>Status Pembayaran:</span>
+                <span>{getPaymentStatusBadge(selectedTransaction.paymentStatus)}</span>
+              </div>
+              {selectedTransaction.paymentMethod && (
+                <div className="flex justify-between">
+                  <span>Metode Pembayaran:</span>
+                  <span>
+                    {selectedTransaction.paymentMethod === 'cash' ? 'Tunai' :
+                     selectedTransaction.paymentMethod === 'transfer' ? 'Transfer' :
+                     selectedTransaction.paymentMethod === 'credit' ? 'Kredit' :
+                     selectedTransaction.paymentMethod === 'mixed' ? 'Campuran' :
+                     selectedTransaction.paymentMethod}
+                  </span>
+                </div>
+              )}
+              {selectedTransaction.note && (
+                <div className="flex justify-between">
+                  <span>Keterangan:</span>
+                  <span>{selectedTransaction.note}</span>
+                </div>
+              )}
               <hr className="my-3" />
+              <div className="font-semibold mb-2">Item Transaksi:</div>
               {selectedTransaction.items.map((item) => (
-                <div key={item.id} className="flex justify-between">
+                <div key={item.id} className="flex justify-between border-b pb-2">
                   <div>
                     <p className="font-medium">{item.product.name}</p>
                     <p className="text-xs text-gray-500">
                       {item.quantity} x {formatCurrency(item.price)}
+                      {item.status && ` (${item.status})`}
                     </p>
                   </div>
                   <span>{formatCurrency(item.subtotal)}</span>
@@ -140,13 +456,19 @@ export default function TransactionHistory() {
                 <span>{formatCurrency(selectedTransaction.total)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Bayar:</span>
+                <span>Tunai:</span>
                 <span>{formatCurrency(selectedTransaction.cash)}</span>
               </div>
-              <div className="flex justify-between font-semibold text-lg">
-                <span>Kembalian:</span>
-                <span>{formatCurrency(selectedTransaction.change)}</span>
+              <div className="flex justify-between">
+                <span>Hutang:</span>
+                <span>{formatCurrency(selectedTransaction.credit)}</span>
               </div>
+              {selectedTransaction.change > 0 && (
+                <div className="flex justify-between font-semibold text-lg">
+                  <span>Kembalian:</span>
+                  <span>{formatCurrency(selectedTransaction.change)}</span>
+                </div>
+              )}
             </div>
             <button
               onClick={() => setSelectedTransaction(null)}
@@ -160,4 +482,3 @@ export default function TransactionHistory() {
     </div>
   )
 }
-
