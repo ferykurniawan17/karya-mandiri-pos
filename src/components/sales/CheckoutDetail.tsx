@@ -79,6 +79,7 @@ export default function CheckoutDetail({
           items: cart.map((item) => ({
             productId: item.product.id,
             quantity: item.quantity,
+            customPrice: item.customPrice !== undefined ? item.customPrice : undefined,
             status: itemStatuses[item.product.id] || undefined,
           })),
           cash: cashAmount,
@@ -134,15 +135,38 @@ export default function CheckoutDetail({
           <div>
             <Label className="mb-2 block">Item Transaksi</Label>
             <div className="space-y-3 border rounded-lg p-4">
-              {cart.map((item) => (
-                <div key={item.product.id} className="border-b pb-3 last:border-b-0">
-                  <div className="flex justify-between items-start gap-4">
-                    <div className="flex-1">
-                      <p className="font-medium">{item.product.name}</p>
-                      <p className="text-sm text-gray-500">
-                        {item.quantity} x {formatCurrency(item.product.sellingPrice)} = {formatCurrency(item.subtotal)}
-                      </p>
-                    </div>
+              {cart.map((item) => {
+                const itemPrice = item.customPrice !== undefined ? item.customPrice : Number(item.product.sellingPrice);
+                const hasCustomPrice = item.customPrice !== undefined;
+                return (
+                  <div key={item.product.id} className="border-b pb-3 last:border-b-0">
+                    <div className="flex justify-between items-start gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{item.product.name}</p>
+                          {hasCustomPrice && (
+                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                              Harga Diubah
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1">
+                          {hasCustomPrice ? (
+                            <>
+                              <p className="text-xs text-gray-400 line-through">
+                                {item.quantity} x {formatCurrency(item.product.sellingPrice)}
+                              </p>
+                              <p className="text-sm text-blue-600 font-semibold">
+                                {item.quantity} x {formatCurrency(itemPrice)} = {formatCurrency(item.subtotal)}
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-sm text-gray-500">
+                              {item.quantity} x {formatCurrency(itemPrice)} = {formatCurrency(item.subtotal)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     <div className="flex-shrink-0 w-32">
                       <Select
                         value={itemStatuses[item.product.id] || ""}
@@ -164,7 +188,8 @@ export default function CheckoutDetail({
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

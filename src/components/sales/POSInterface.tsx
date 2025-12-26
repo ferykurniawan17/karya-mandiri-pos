@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { CartItem, POSSession } from "@/types";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import CheckoutDetail from "./CheckoutDetail";
-import { X } from "lucide-react";
+import { PriceEditModal } from "@/components/ui/price-edit-modal";
+import { X, Pencil } from "lucide-react";
 
 interface Product {
   id: string;
@@ -39,6 +40,7 @@ export default function POSInterface() {
   const [showReceipt, setShowReceipt] = useState(false);
   const [lastTransaction, setLastTransaction] = useState<any>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [editingPriceProductId, setEditingPriceProductId] = useState<string | null>(null);
 
   // Initialize with default session or load from storage
   useEffect(() => {
@@ -282,6 +284,11 @@ export default function POSInterface() {
     );
   };
 
+  // Helper function to get item price (custom or original)
+  const getItemPrice = (item: CartItem): number => {
+    return item.customPrice !== undefined ? item.customPrice : Number(item.product.sellingPrice);
+  };
+
   // Cart operations
   const addToCart = (product: Product) => {
     if (!activeSessionId) {
@@ -306,15 +313,17 @@ export default function POSInterface() {
       }
       updateActiveSession((session) => ({
         ...session,
-        cart: session.cart.map((item) =>
-          item.product.id === product.id
-            ? {
-                ...item,
-                quantity: item.quantity + 1,
-                subtotal: (item.quantity + 1) * Number(product.sellingPrice),
-              }
-            : item
-        ),
+        cart: session.cart.map((item) => {
+          if (item.product.id === product.id) {
+            const itemPrice = getItemPrice(item);
+            return {
+              ...item,
+              quantity: item.quantity + 1,
+              subtotal: (item.quantity + 1) * itemPrice,
+            };
+          }
+          return item;
+        }),
       }));
     } else {
       // Check if adding 1 new item would exceed stock
@@ -362,18 +371,20 @@ export default function POSInterface() {
       return;
     }
 
-    updateActiveSession((session) => ({
-      ...session,
-      cart: session.cart.map((item) =>
-        item.product.id === productId
-          ? {
+      updateActiveSession((session) => ({
+        ...session,
+        cart: session.cart.map((item) => {
+          if (item.product.id === productId) {
+            const itemPrice = getItemPrice(item);
+            return {
               ...item,
               quantity,
-              subtotal: quantity * Number(item.product.sellingPrice),
-            }
-          : item
-      ),
-    }));
+              subtotal: quantity * itemPrice,
+            };
+          }
+          return item;
+        }),
+      }));
   };
 
   const removeFromCart = (productId: string) => {
@@ -381,6 +392,27 @@ export default function POSInterface() {
       ...session,
       cart: session.cart.filter((item) => item.product.id !== productId),
     }));
+  };
+
+  const updateItemPrice = (productId: string, customPrice: number | undefined) => {
+    updateActiveSession((session) => ({
+      ...session,
+      cart: session.cart.map((item) => {
+        if (item.product.id === productId) {
+          const itemPrice = customPrice !== undefined ? customPrice : Number(item.product.sellingPrice);
+          return {
+            ...item,
+            customPrice,
+            subtotal: item.quantity * itemPrice,
+          };
+        }
+        return item;
+      }),
+    }));
+  };
+
+  const resetItemPrice = (productId: string) => {
+    updateItemPrice(productId, undefined);
   };
 
   const updateProjectName = (projectName: string) => {
@@ -551,53 +583,86 @@ export default function POSInterface() {
               <p className="text-gray-500 text-center py-8">Keranjang kosong</p>
             ) : (
               <>
-                <div className="space-y-3 max-h-64 overflow-y-auto mb-4">
-                  {activeCart.map((item) => (
-                    <div key={item.product.id} className="border-b pb-3">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <p className="font-medium text-sm">
-                            {item.product.name}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {formatCurrency(item.product.sellingPrice)}
+                <div className="space-y-3 max-h-[500px] overflow-y-auto mb-4">
+                  {activeCart.map((item) => {
+                    const itemPrice = getItemPrice(item);
+                    const hasCustomPrice = item.customPrice !== undefined;
+                    return (
+                      <div key={item.product.id} className="border-b pb-3">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-sm">
+                                {item.product.name}
+                              </p>
+                              {hasCustomPrice && (
+                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                                  Harga Diubah
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-1">
+                              {hasCustomPrice ? (
+                                <>
+                                  <p className="text-xs text-gray-400 line-through">
+                                    {formatCurrency(item.product.sellingPrice)}
+                                  </p>
+                                  <p className="text-xs text-blue-600 font-semibold">
+                                    {formatCurrency(itemPrice)}
+                                  </p>
+                                </>
+                              ) : (
+                                <p className="text-xs text-gray-500">
+                                  {formatCurrency(itemPrice)}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setEditingPriceProductId(item.product.id)}
+                              className="text-indigo-600 hover:text-indigo-800 p-1"
+                              title="Edit Harga"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => removeFromCart(item.product.id)}
+                              className="text-red-600 hover:text-red-800 ml-1"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between mt-2">
+                          <div className="flex items-center space-x-2">
+                            <button
+                              onClick={() =>
+                                updateQuantity(item.product.id, item.quantity - 1)
+                              }
+                              className="w-6 h-6 rounded border border-gray-300 flex items-center justify-center hover:bg-gray-100"
+                            >
+                              -
+                            </button>
+                            <span className="w-8 text-center">
+                              {item.quantity}
+                            </span>
+                            <button
+                              onClick={() =>
+                                updateQuantity(item.product.id, item.quantity + 1)
+                              }
+                              className="w-6 h-6 rounded border border-gray-300 flex items-center justify-center hover:bg-gray-100"
+                            >
+                              +
+                            </button>
+                          </div>
+                          <p className="font-semibold">
+                            {formatCurrency(item.subtotal)}
                           </p>
                         </div>
-                        <button
-                          onClick={() => removeFromCart(item.product.id)}
-                          className="text-red-600 hover:text-red-800 ml-2"
-                        >
-                          ×
-                        </button>
                       </div>
-                      <div className="flex items-center justify-between mt-2">
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() =>
-                              updateQuantity(item.product.id, item.quantity - 1)
-                            }
-                            className="w-6 h-6 rounded border border-gray-300 flex items-center justify-center hover:bg-gray-100"
-                          >
-                            -
-                          </button>
-                          <span className="w-8 text-center">
-                            {item.quantity}
-                          </span>
-                          <button
-                            onClick={() =>
-                              updateQuantity(item.product.id, item.quantity + 1)
-                            }
-                            className="w-6 h-6 rounded border border-gray-300 flex items-center justify-center hover:bg-gray-100"
-                          >
-                            +
-                          </button>
-                        </div>
-                        <p className="font-semibold">
-                          {formatCurrency(item.subtotal)}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <div className="border-t pt-4 space-y-3">
@@ -842,6 +907,25 @@ export default function POSInterface() {
           </div>
         </>
       )}
+
+      {/* Price Edit Modal */}
+      {editingPriceProductId && (() => {
+        const item = activeCart.find((i) => i.product.id === editingPriceProductId);
+        if (!item) return null;
+        return (
+          <PriceEditModal
+            isOpen={true}
+            productName={item.product.name}
+            originalPrice={Number(item.product.sellingPrice)}
+            currentPrice={item.customPrice}
+            onSave={(newPrice) => {
+              updateItemPrice(editingPriceProductId, newPrice);
+              setEditingPriceProductId(null);
+            }}
+            onClose={() => setEditingPriceProductId(null)}
+          />
+        );
+      })()}
     </div>
   );
 }

@@ -101,13 +101,17 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const subtotal = Number(product.sellingPrice) * item.quantity
+      // Use custom price if provided, otherwise use product selling price
+      const itemPrice = item.customPrice !== undefined 
+        ? Number(item.customPrice) 
+        : Number(product.sellingPrice)
+      const subtotal = itemPrice * item.quantity
       total += subtotal
 
       transactionItems.push({
         productId: product.id,
         quantity: item.quantity,
-        price: product.sellingPrice,
+        price: itemPrice,  // Custom or original price
         subtotal,
         status: item.status || null,
       })

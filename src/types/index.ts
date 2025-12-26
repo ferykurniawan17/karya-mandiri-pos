@@ -56,6 +56,7 @@ export interface CartItem {
   product: Product
   quantity: number
   subtotal: number
+  customPrice?: number  // Optional custom price, jika tidak ada gunakan product.sellingPrice
 }
 
 export interface POSSession {
