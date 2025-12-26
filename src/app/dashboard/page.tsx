@@ -3,7 +3,8 @@ import { getCurrentUser } from '@/lib/auth'
 import Link from 'next/link'
 import LogoutButton from '@/components/auth/LogoutButton'
 import SyncStatus from '@/components/sync/SyncStatus'
-import { ShoppingCart, Package, Folder, Receipt, Tag, Award, Users, Truck, FileText } from 'lucide-react'
+import DashboardStats from '@/components/reports/DashboardStats'
+import { ShoppingCart, Package, Folder, Receipt, Tag, Award, Users, Truck, FileText, BarChart3 } from 'lucide-react'
 
 export default async function DashboardPage() {
   const user = await getCurrentUser()
@@ -30,6 +31,8 @@ export default async function DashboardPage() {
 
       <main className="w-full py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
+          <DashboardStats />
+          
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Link
               href="/pos"
@@ -142,6 +145,17 @@ export default async function DashboardPage() {
                 <p className="text-gray-600">Kelola pengguna</p>
               </Link>
             )}
+
+            <Link
+              href="/reports/sales"
+              className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition-shadow"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <BarChart3 className="h-6 w-6 text-violet-600" />
+                <h2 className="text-xl font-semibold text-gray-900">Laporan</h2>
+              </div>
+              <p className="text-gray-600">Laporan penjualan, pembelian, dan analitik</p>
+            </Link>
           </div>
 
           <div className="mt-6">
