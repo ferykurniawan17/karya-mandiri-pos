@@ -60,8 +60,10 @@ export async function GET(request: NextRequest) {
             const matchesTags = product.tags?.some(tag => 
               tag.name.toLowerCase().includes(lowerSearch)
             ) || false
+            // Search by brand name
+            const matchesBrand = product.brand?.name.toLowerCase().includes(lowerSearch) || false
             
-            return matchesName || matchesAliasName || matchesSku || matchesPlacement || matchesTags
+            return matchesName || matchesAliasName || matchesSku || matchesPlacement || matchesTags || matchesBrand
           }
         )
       : products
