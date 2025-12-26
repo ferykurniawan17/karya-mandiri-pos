@@ -50,11 +50,24 @@ if (!isDev) {
     if (!fs.existsSync(dbDir)) {
         fs.mkdirSync(dbDir, { recursive: true });
     }
-    // Copy database if it doesn't exist
+    // Copy database template if it doesn't exist
+    // This ensures schema is already initialized
     if (!fs.existsSync(dbPath)) {
+        // Try to copy from template database (if bundled)
+        const templateDbPath = path.join(__dirname, '../prisma/pos-template.db');
         const defaultDbPath = path.join(__dirname, '../prisma/pos.db');
-        if (fs.existsSync(defaultDbPath)) {
+        if (fs.existsSync(templateDbPath)) {
+            fs.copyFileSync(templateDbPath, dbPath);
+            console.log('Database template copied from template file');
+        }
+        else if (fs.existsSync(defaultDbPath)) {
             fs.copyFileSync(defaultDbPath, dbPath);
+            console.log('Database copied from default file');
+        }
+        else {
+            // Database will be created by Prisma on first connection
+            // Schema will be initialized via API call
+            console.log('Database will be created on first connection');
         }
     }
 }
