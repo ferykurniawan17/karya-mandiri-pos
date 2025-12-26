@@ -71,6 +71,8 @@ model Transaction {
   total       Decimal
   cash        Decimal
   change      Decimal
+  projectName String?
+  note        String?
   userId      String
   user        User              @relation(fields: [userId], references: [id])
   items       TransactionItem[]
@@ -86,5 +88,6 @@ model TransactionItem {
   quantity      Int
   price         Decimal
   subtotal      Decimal
+  status        String?     // "diambil" or "dikirim"
 }
 

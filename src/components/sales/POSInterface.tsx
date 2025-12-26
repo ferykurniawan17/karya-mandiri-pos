@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { CartItem } from "@/types";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import CheckoutDetail from "./CheckoutDetail";
 
 interface Product {
   id: string;
@@ -28,7 +29,8 @@ export default function POSInterface() {
   const [categories, setCategories] = useState<{ id: string; name: string }[]>(
     []
   );
-  const [cash, setCash] = useState("");
+  const [projectName, setProjectName] = useState("");
+  const [showCheckoutDetail, setShowCheckoutDetail] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [lastTransaction, setLastTransaction] = useState<any>(null);
@@ -131,62 +133,12 @@ export default function POSInterface() {
     return cart.reduce((sum, item) => sum + item.subtotal, 0);
   };
 
-  const getChange = () => {
-    const total = getTotal();
-    const cashAmount = parseFloat(cash || "0") || 0;
-    return cashAmount - total;
-  };
-
-  const handleCheckout = async () => {
+  const handleContinue = () => {
     if (cart.length === 0) {
       alert("Keranjang kosong");
       return;
     }
-
-    const total = getTotal();
-    const cashAmount = parseFloat(cash) || 0;
-
-    if (cashAmount < total) {
-      alert("Jumlah pembayaran kurang");
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const response = await fetch("/api/transactions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          items: cart.map((item) => ({
-            productId: item.product.id,
-            quantity: item.quantity,
-          })),
-          cash: cashAmount,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        alert(data.error || "Gagal melakukan transaksi");
-        setLoading(false);
-        return;
-      }
-
-      setLastTransaction(data.transaction);
-      setCart([]);
-      setCash("");
-      setShowReceipt(true);
-      setLoading(false);
-      fetchProducts();
-      router.refresh();
-    } catch (err) {
-      alert("Terjadi kesalahan");
-      setLoading(false);
-    }
+    setShowCheckoutDetail(true);
   };
 
   const formatCurrency = (amount: number | string | any) => {
@@ -328,43 +280,30 @@ export default function POSInterface() {
                 </div>
 
                 <div className="border-t pt-4 space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nama Proyek (Opsional)
+                    </label>
+                    <input
+                      type="text"
+                      value={projectName}
+                      onChange={(e) => setProjectName(e.target.value)}
+                      placeholder="Masukkan nama proyek"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
                   <div className="flex justify-between text-lg font-bold">
                     <span>Total:</span>
                     <span>{formatCurrency(getTotal())}</span>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Jumlah Bayar
-                    </label>
-                    <CurrencyInput
-                      value={cash || "0"}
-                      onChange={(value) => setCash(value)}
-                      placeholder="Rp 0,00"
-                    />
-                  </div>
-
-                  {cash && parseFloat(cash || "0") > 0 && (
-                    <div className="flex justify-between">
-                      <span>Kembalian:</span>
-                      <span
-                        className={
-                          getChange() < 0
-                            ? "text-red-600"
-                            : "text-green-600 font-semibold"
-                        }
-                      >
-                        {formatCurrency(getChange())}
-                      </span>
-                    </div>
-                  )}
-
                   <button
-                    onClick={handleCheckout}
-                    disabled={loading || cart.length === 0 || getChange() < 0}
+                    onClick={handleContinue}
+                    disabled={cart.length === 0}
                     className="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                   >
-                    {loading ? "Memproses..." : "Checkout"}
+                    Lanjut
                   </button>
                 </div>
               </>
@@ -372,6 +311,24 @@ export default function POSInterface() {
           </div>
         </div>
       </div>
+
+      {/* Checkout Detail Modal */}
+      {showCheckoutDetail && (
+        <CheckoutDetail
+          cart={cart}
+          projectName={projectName}
+          total={getTotal()}
+          onBack={() => setShowCheckoutDetail(false)}
+          onSuccess={(transaction) => {
+            setLastTransaction(transaction);
+            setCart([]);
+            setProjectName("");
+            setShowCheckoutDetail(false);
+            setShowReceipt(true);
+            fetchProducts();
+          }}
+        />
+      )}
 
       {/* Receipt Modal */}
       {showReceipt && lastTransaction && (
@@ -396,13 +353,31 @@ export default function POSInterface() {
                 <span>Kasir:</span>
                 <span>{lastTransaction.user.name}</span>
               </div>
+              {lastTransaction.projectName && (
+                <div>
+                  <span>Proyek:</span>
+                  <span>{lastTransaction.projectName}</span>
+                </div>
+              )}
             </div>
+            {lastTransaction.note && (
+              <>
+                <hr />
+                <div className="receipt-info">
+                  <div>
+                    <span>Keterangan:</span>
+                    <span>{lastTransaction.note}</span>
+                  </div>
+                </div>
+              </>
+            )}
             <hr />
             {lastTransaction.items.map((item: any) => (
               <div key={item.id} className="receipt-item">
                 <div className="receipt-item-name">{item.product.name}</div>
                 <div className="receipt-item-detail">
                   {item.quantity} x {formatCurrency(item.price)}
+                  {item.status && ` (${item.status})`}
                 </div>
                 <div className="receipt-item-price">
                   {formatCurrency(item.subtotal)}
@@ -463,6 +438,18 @@ export default function POSInterface() {
                   <span>Kasir:</span>
                   <span>{lastTransaction.user.name}</span>
                 </div>
+                {lastTransaction.projectName && (
+                  <div className="flex justify-between">
+                    <span>Proyek:</span>
+                    <span>{lastTransaction.projectName}</span>
+                  </div>
+                )}
+                {lastTransaction.note && (
+                  <div className="flex justify-between">
+                    <span>Keterangan:</span>
+                    <span>{lastTransaction.note}</span>
+                  </div>
+                )}
                 <hr className="my-3" />
                 {lastTransaction.items.map((item: any) => (
                   <div key={item.id} className="flex justify-between">
@@ -470,6 +457,7 @@ export default function POSInterface() {
                       <p className="font-medium">{item.product.name}</p>
                       <p className="text-xs text-gray-500">
                         {item.quantity} x {formatCurrency(item.price)}
+                        {item.status && ` (${item.status})`}
                       </p>
                     </div>
                     <span>{formatCurrency(item.subtotal)}</span>

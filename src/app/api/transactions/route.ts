@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { items, cash } = body
+    const { items, cash, projectName, note } = body
 
     if (!items || items.length === 0) {
       return NextResponse.json(
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const subtotal = product.sellingPrice * item.quantity
+      const subtotal = Number(product.sellingPrice) * item.quantity
       total += subtotal
 
       transactionItems.push({
@@ -109,6 +109,7 @@ export async function POST(request: NextRequest) {
         quantity: item.quantity,
         price: product.sellingPrice,
         subtotal,
+        status: item.status || null,
       })
     }
 
@@ -119,7 +120,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const change = cash - total
+    const change = Number(cash) - total
 
     // Generate invoice number
     const invoiceNo = `INV-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
@@ -129,8 +130,10 @@ export async function POST(request: NextRequest) {
       data: {
         invoiceNo,
         total,
-        cash,
+        cash: Number(cash),
         change,
+        projectName: projectName || null,
+        note: note || null,
         userId: user.id,
         items: {
           create: transactionItems,
@@ -174,8 +177,9 @@ export async function POST(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('Create transaction error:', error)
+    console.error('Error details:', error.message, error.stack)
     return NextResponse.json(
-      { error: 'Terjadi kesalahan' },
+      { error: 'Terjadi kesalahan', details: error.message },
       { status: 500 }
     )
   }
