@@ -13,6 +13,13 @@ export interface Category {
   createdAt: Date
 }
 
+export interface Brand {
+  id: string
+  name: string
+  photo?: string | null
+  createdAt: Date
+}
+
 export interface Product {
   id: string
   name: string
@@ -20,12 +27,14 @@ export interface Product {
   stock: number
   minimalStock: number
   unit: string
-  purchasePrice: number
+  purchasePrice?: number | null  // Optional, harga dari PO
   sellingPrice: number
   photo?: string
   placement?: string
   categoryId: string
   category: Category
+  brandId?: string | null
+  brand?: Brand | null
   createdAt: Date
   updatedAt: Date
 }
@@ -101,5 +110,45 @@ export interface POSSession {
   projectName: string
   createdAt: Date
   isActive: boolean
+}
+
+export interface Provider {
+  id: string
+  name: string
+  phone?: string | null
+  email?: string | null
+  address?: string | null
+  notes?: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface PurchaseOrderItem {
+  id: string
+  purchaseOrderId: string
+  productId: string
+  product: Product
+  quantity: number
+  purchasePrice: number
+  subtotal: number
+  receivedQuantity: number
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface PurchaseOrder {
+  id: string
+  poNumber: string
+  providerId?: string | null
+  provider?: Provider | null
+  status: string  // "draft", "approved", "received", "cancelled"
+  total: number
+  note?: string | null
+  userId: string
+  user: User
+  items: PurchaseOrderItem[]
+  receivedAt?: Date | null
+  createdAt: Date
+  updatedAt: Date
 }
 

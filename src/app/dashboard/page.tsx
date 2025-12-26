@@ -3,7 +3,7 @@ import { getCurrentUser } from '@/lib/auth'
 import Link from 'next/link'
 import LogoutButton from '@/components/auth/LogoutButton'
 import SyncStatus from '@/components/sync/SyncStatus'
-import { ShoppingCart, Package, Folder, Receipt, Tag, Award, Users } from 'lucide-react'
+import { ShoppingCart, Package, Folder, Receipt, Tag, Award, Users, Truck, FileText } from 'lucide-react'
 
 export default async function DashboardPage() {
   const user = await getCurrentUser()
@@ -106,6 +106,28 @@ export default async function DashboardPage() {
                 <h2 className="text-xl font-semibold text-gray-900">Pelanggan</h2>
               </div>
               <p className="text-gray-600">Kelola pelanggan dan proyek</p>
+            </Link>
+
+            <Link
+              href="/providers"
+              className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition-shadow"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <Truck className="h-6 w-6 text-cyan-600" />
+                <h2 className="text-xl font-semibold text-gray-900">Provider</h2>
+              </div>
+              <p className="text-gray-600">Kelola provider barang</p>
+            </Link>
+
+            <Link
+              href="/purchase-orders"
+              className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition-shadow"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <FileText className="h-6 w-6 text-red-600" />
+                <h2 className="text-xl font-semibold text-gray-900">Purchase Order</h2>
+              </div>
+              <p className="text-gray-600">Kelola pembelian barang masuk</p>
             </Link>
 
             {user.role === 'admin' && (

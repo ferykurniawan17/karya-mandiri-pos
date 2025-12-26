@@ -11,13 +11,14 @@ datasource db {
 }
 
 model User {
-  id        String        @id @default(uuid())
-  username  String        @unique
-  password  String
-  name      String
-  role      String        @default("cashier")
-  createdAt DateTime      @default(now())
-  transactions Transaction[]
+  id            String          @id @default(uuid())
+  username      String          @unique
+  password      String
+  name          String
+  role          String          @default("cashier")
+  createdAt     DateTime        @default(now())
+  transactions  Transaction[]
+  purchaseOrders PurchaseOrder[]
 }
 
 model Category {
@@ -72,25 +73,26 @@ model Project {
 }
 
 model Product {
-  id              String            @id @default(uuid())
-  name            String
-  aliasName       String?
-  sku             String?           @unique
-  stock           Int               @default(0)
-  minimalStock    Int               @default(0)
-  unit            String
-  purchasePrice   Decimal
-  sellingPrice    Decimal
-  photo           String?
-  placement       String?
-  categoryId      String
-  category        Category          @relation(fields: [categoryId], references: [id])
-  brandId         String?
-  brand           Brand?            @relation(fields: [brandId], references: [id])
-  tags            Tag[]
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  id                String              @id @default(uuid())
+  name              String
+  aliasName         String?
+  sku               String?             @unique
+  stock             Int                 @default(0)
+  minimalStock      Int                 @default(0)
+  unit              String
+  purchasePrice     Decimal?            // Optional, harga dari PO
+  sellingPrice      Decimal
+  photo             String?
+  placement         String?
+  categoryId        String
+  category          Category            @relation(fields: [categoryId], references: [id])
+  brandId           String?
+  brand             Brand?              @relation(fields: [brandId], references: [id])
+  tags              Tag[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
   transactionItems TransactionItem[]
+  purchaseOrderItems PurchaseOrderItem[]
 }
 
 model Transaction {
@@ -125,5 +127,47 @@ model TransactionItem {
   price         Decimal
   subtotal      Decimal
   status        String?     // "diambil" or "dikirim"
+}
+
+model Provider {
+  id            String          @id @default(uuid())
+  name          String
+  phone         String?
+  email         String?
+  address       String?
+  notes         String?
+  purchaseOrders PurchaseOrder[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model PurchaseOrder {
+  id            String              @id @default(uuid())
+  poNumber      String              @unique  // Auto-generated: PO-YYYYMMDD-XXXXX
+  providerId    String?
+  provider      Provider?           @relation(fields: [providerId], references: [id])
+  status        String              @default("draft")  // "draft", "approved", "received", "cancelled"
+  total         Decimal             @default(0)
+  note          String?
+  userId        String
+  user          User                @relation(fields: [userId], references: [id])
+  items         PurchaseOrderItem[]
+  receivedAt    DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+}
+
+model PurchaseOrderItem {
+  id              String          @id @default(uuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder   @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product         @relation(fields: [productId], references: [id])
+  quantity        Int
+  purchasePrice   Decimal         // Harga beli dari PO ini
+  subtotal        Decimal
+  receivedQuantity Int            @default(0)  // Jumlah yang sudah diterima
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 }
 

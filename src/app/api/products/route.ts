@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
         stock: parseInt(stock) || 0,
         minimalStock: parseInt(minimalStock) || 0,
         unit,
-        purchasePrice: parseFloat(purchasePrice),
+        purchasePrice: purchasePrice ? parseFloat(purchasePrice) : undefined,
         sellingPrice: parseFloat(sellingPrice),
         photo: photo || undefined,
         placement: placement || undefined,

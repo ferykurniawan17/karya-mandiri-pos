@@ -101,7 +101,7 @@ export default function ProductForm({
         stock: product.stock.toString(),
         minimalStock: product.minimalStock.toString(),
         unit: product.unit,
-        purchasePrice: product.purchasePrice.toString(),
+        purchasePrice: product.purchasePrice?.toString() || "",
         sellingPrice: product.sellingPrice.toString(),
         photo: product.photo || "",
         placement: product.placement || "",
@@ -292,6 +292,10 @@ export default function ProductForm({
         },
         body: JSON.stringify({
           ...formData,
+          purchasePrice:
+            formData.purchasePrice && parseFloat(formData.purchasePrice) > 0
+              ? formData.purchasePrice
+              : undefined,
           categoryId: selectedCategoryId || formData.categoryId,
           brandId: selectedBrandId || undefined,
           tagIds: selectedTags,
@@ -507,15 +511,19 @@ export default function ProductForm({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="purchasePrice">Harga Beli *</Label>
+            <Label htmlFor="purchasePrice">
+              Harga Beli (Opsional)
+              <span className="text-xs text-gray-500 block mt-1">
+                Harga beli biasanya diisi dari Purchase Order
+              </span>
+            </Label>
             <CurrencyInput
               id="purchasePrice"
-              required
               value={formData.purchasePrice}
               onChange={(value) =>
                 setFormData({ ...formData, purchasePrice: value })
               }
-              placeholder="Rp 0,00"
+              placeholder="Rp 0"
             />
           </div>
           <div className="space-y-2">
