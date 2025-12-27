@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select'
 import ExportButtons from './ExportButtons'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
+import { Checkbox } from '@/components/ui/checkbox'
 import { DollarSign, TrendingDown, TrendingUp, Percent } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
@@ -41,6 +42,11 @@ export default function ProfitLossReport() {
     new Date().toISOString().split('T')[0]
   )
   const [groupBy, setGroupBy] = useState('day')
+  const [chartItems, setChartItems] = useState({
+    revenue: true,
+    cogs: true,
+    profit: true,
+  })
 
   useEffect(() => {
     fetchReport()
@@ -91,12 +97,13 @@ export default function ProfitLossReport() {
     : []
 
   const chartData = reportData
-    ? reportData.data.map((row) => ({
-        period: row.period,
-        Revenue: row.revenue,
-        COGS: row.cogs,
-        Profit: row.profit,
-      }))
+    ? reportData.data.map((row) => {
+        const data: any = { period: row.period }
+        if (chartItems.revenue) data.Revenue = row.revenue
+        if (chartItems.cogs) data.COGS = row.cogs
+        if (chartItems.profit) data.Profit = row.profit
+        return data
+      })
     : []
 
   return (
@@ -209,7 +216,59 @@ export default function ProfitLossReport() {
             {/* Chart */}
             {chartData.length > 0 && (
               <div className="mb-6 bg-white p-4 rounded-lg border">
-                <h3 className="text-lg font-semibold mb-4">Grafik Revenue vs COGS vs Profit</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">Grafik Revenue vs COGS vs Profit</h3>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="chart-revenue"
+                        checked={chartItems.revenue}
+                        onCheckedChange={(checked) =>
+                          setChartItems({ ...chartItems, revenue: checked as boolean })
+                        }
+                      />
+                      <label
+                        htmlFor="chart-revenue"
+                        className="text-sm font-medium text-gray-700 cursor-pointer flex items-center gap-1"
+                      >
+                        <div className="w-3 h-3 rounded bg-green-500"></div>
+                        Revenue
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="chart-cogs"
+                        checked={chartItems.cogs}
+                        onCheckedChange={(checked) =>
+                          setChartItems({ ...chartItems, cogs: checked as boolean })
+                        }
+                      />
+                      <label
+                        htmlFor="chart-cogs"
+                        className="text-sm font-medium text-gray-700 cursor-pointer flex items-center gap-1"
+                      >
+                        <div className="w-3 h-3 rounded bg-red-500"></div>
+                        COGS
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="chart-profit"
+                        checked={chartItems.profit}
+                        onCheckedChange={(checked) =>
+                          setChartItems({ ...chartItems, profit: checked as boolean })
+                        }
+                      />
+                      <label
+                        htmlFor="chart-profit"
+                        className="text-sm font-medium text-gray-700 cursor-pointer flex items-center gap-1"
+                      >
+                        <div className="w-3 h-3 rounded bg-blue-500"></div>
+                        Profit
+                      </label>
+                    </div>
+                  </div>
+                </div>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -217,9 +276,9 @@ export default function ProfitLossReport() {
                     <YAxis />
                     <Tooltip formatter={(value: number) => formatCurrency(value)} />
                     <Legend />
-                    <Bar dataKey="Revenue" fill="#10b981" />
-                    <Bar dataKey="COGS" fill="#ef4444" />
-                    <Bar dataKey="Profit" fill="#3b82f6" />
+                    {chartItems.revenue && <Bar dataKey="Revenue" fill="#10b981" />}
+                    {chartItems.cogs && <Bar dataKey="COGS" fill="#ef4444" />}
+                    {chartItems.profit && <Bar dataKey="Profit" fill="#3b82f6" />}
                   </BarChart>
                 </ResponsiveContainer>
               </div>
