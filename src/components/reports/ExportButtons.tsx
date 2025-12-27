@@ -19,7 +19,12 @@ export default function ExportButtons({
   title,
 }: ExportButtonsProps) {
   const handleExportPDF = () => {
-    exportToPDF(data, columns, `${filename}.pdf`, title)
+    try {
+      exportToPDF(data, columns, `${filename}.pdf`, title)
+    } catch (error) {
+      console.error('Error exporting PDF:', error)
+      alert('Error exporting PDF. Please try again.')
+    }
   }
 
   const handleExportExcel = () => {

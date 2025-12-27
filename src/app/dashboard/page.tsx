@@ -65,9 +65,6 @@ export default async function DashboardPage() {
                         <h2 className="text-3xl font-bold text-white">
                           Point of Sale
                         </h2>
-                        <span className="bg-white/25 backdrop-blur-sm text-white text-xs font-semibold px-3 py-1 rounded-full">
-                          CEPAT
-                        </span>
                       </div>
                       <p className="text-blue-100 text-lg">
                         Sistem transaksi penjualan yang cepat dan mudah

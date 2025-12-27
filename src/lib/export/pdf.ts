@@ -1,5 +1,5 @@
-import jsPDF from 'jspdf'
-import 'jspdf-autotable'
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
 export interface ExportColumn {
   header: string
@@ -39,8 +39,8 @@ export function exportToPDF(
 
   const headers = columns.map((col) => col.header)
 
-  // Add table
-  ;(doc as any).autoTable({
+  // Add table using autoTable function directly (new API for jspdf-autotable 4.0+)
+  autoTable(doc, {
     head: [headers],
     body: tableData,
     startY: title ? 25 : 15,
