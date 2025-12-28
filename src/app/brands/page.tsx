@@ -1,39 +1,21 @@
-import { redirect } from 'next/navigation'
-import { getCurrentUser } from '@/lib/auth'
-import Link from 'next/link'
-import LogoutButton from '@/components/auth/LogoutButton'
-import BrandManagement from '@/components/brands/BrandManagement'
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth";
+import BrandManagement from "@/components/brands/BrandManagement";
+import AppLayout from "@/components/layout/AppLayout";
 
 export default async function BrandsPage() {
-  const user = await getCurrentUser()
+  const user = await getCurrentUser();
 
   if (!user) {
-    redirect('/login')
+    redirect("/login");
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow">
-        <div className="w-full px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center space-x-4">
-              <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">
-                ← Kembali
-              </Link>
-              <h1 className="text-xl font-bold text-gray-900">Kelola Brand</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-gray-700">Halo, {user.name}</span>
-              <LogoutButton />
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      <main className="w-full py-6 sm:px-6 lg:px-8">
+    <AppLayout user={user} title="Kelola Brand">
+      <div className="w-full py-6 sm:px-6 lg:px-8">
         <BrandManagement />
-      </main>
-    </div>
-  )
+      </div>
+    </AppLayout>
+  );
 }
 
