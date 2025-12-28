@@ -117,11 +117,15 @@ export default function ReceivePO({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            items: items.map((item) => ({
-              itemId: item.itemId,
-              receivedQuantity: item.receivedQuantity,
-              purchasePrice: parseFloat(item.purchasePrice),
-            })),
+            items: items.map((item) => {
+              const poItem = purchaseOrder.items.find((i) => i.id === item.itemId);
+              return {
+                itemId: item.itemId,
+                receivedQuantity: item.receivedQuantity,
+                purchaseUnit: poItem?.purchaseUnit || poItem?.product?.purchaseUnit || null,
+                purchasePrice: parseFloat(item.purchasePrice),
+              };
+            }),
           }),
         }
       );

@@ -31,6 +31,7 @@ interface POItem {
   productId: string;
   product?: Product;
   quantity: string;
+  purchaseUnit?: string;
   purchasePrice: string;
   subtotal: number;
 }
@@ -83,6 +84,8 @@ export default function PurchaseOrderForm({
             productId: item.productId,
             product: item.product,
             quantity: item.quantity.toString(),
+            purchaseUnit:
+              item.purchaseUnit || item.product?.purchaseUnit || undefined,
             purchasePrice: finalPrice.toString(),
             subtotal: item.quantity * finalPrice,
           };
@@ -267,6 +270,8 @@ export default function PurchaseOrderForm({
           items: items.map((item) => ({
             productId: item.productId,
             quantity: parseInt(item.quantity),
+            purchaseUnit:
+              item.purchaseUnit || item.product?.purchaseUnit || null,
             purchasePrice: parseFloat(item.purchasePrice),
           })),
         }),

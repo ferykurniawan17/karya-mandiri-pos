@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { calculateStockDeduction, getEffectiveStock } from '@/lib/product-units'
 
 export async function GET(request: NextRequest) {
   try {
@@ -140,6 +141,11 @@ export async function POST(request: NextRequest) {
     for (const item of items) {
       const product = await prisma.product.findUnique({
         where: { id: item.productId },
+        include: {
+          sellingUnits: {
+            where: { isActive: true },
+          },
+        },
       })
 
       if (!product) {
@@ -149,22 +155,47 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      if (product.stock < item.quantity) {
+      // Get selling unit if provided
+      let sellingUnit = null
+      let stockDeduction = item.quantity
+      
+      if (item.sellingUnitId) {
+        sellingUnit = product.sellingUnits?.find(
+          (su) => su.id === item.sellingUnitId && su.isActive
+        )
+        
+        if (!sellingUnit) {
+          return NextResponse.json(
+            { error: `Selling unit tidak ditemukan untuk produk ${product.name}` },
+            { status: 400 }
+          )
+        }
+        
+        // Calculate stock deduction in base unit
+        stockDeduction = calculateStockDeduction(item.quantity, sellingUnit)
+      }
+
+      // Check stock availability (use baseStock if available, otherwise stock)
+      const effectiveStock = getEffectiveStock(product)
+      
+      if (effectiveStock < stockDeduction) {
         return NextResponse.json(
-          { error: `Stok ${product.name} tidak mencukupi` },
+          { error: `Stok ${product.name} tidak mencukupi. Stok tersedia: ${effectiveStock}, Dibutuhkan: ${stockDeduction}` },
           { status: 400 }
         )
       }
 
-      // Use custom price if provided, otherwise use product selling price
-      const itemPrice = item.customPrice !== undefined 
+      // Use custom price if provided, otherwise use selling unit price or product selling price
+      let itemPrice = item.customPrice !== undefined 
         ? Number(item.customPrice) 
-        : Number(product.sellingPrice)
+        : (sellingUnit ? Number(sellingUnit.sellingPrice) : Number(product.sellingPrice))
+      
       const subtotal = itemPrice * item.quantity
       total += subtotal
 
       transactionItems.push({
         productId: product.id,
+        sellingUnitId: sellingUnit?.id || null,
         quantity: item.quantity,
         price: itemPrice,  // Custom or original price
         subtotal,
@@ -264,6 +295,7 @@ export async function POST(request: NextRequest) {
                 category: true,
               },
             },
+            sellingUnit: true,
           },
         },
       },
@@ -271,13 +303,44 @@ export async function POST(request: NextRequest) {
 
     // Update product stocks
     for (const item of items) {
-      await prisma.product.update({
+      const product = await prisma.product.findUnique({
         where: { id: item.productId },
-        data: {
-          stock: {
-            decrement: item.quantity,
+        include: {
+          sellingUnits: {
+            where: { isActive: true },
           },
         },
+      })
+
+      if (!product) continue
+
+      // Calculate stock deduction
+      let stockDeduction = item.quantity
+      if (item.sellingUnitId) {
+        const sellingUnit = product.sellingUnits?.find(
+          (su) => su.id === item.sellingUnitId
+        )
+        if (sellingUnit) {
+          stockDeduction = calculateStockDeduction(item.quantity, sellingUnit)
+        }
+      }
+
+      // Update stock - use baseStock if available, otherwise stock
+      const updateData: any = {}
+      if (product.baseStock !== null && product.baseStock !== undefined) {
+        updateData.baseStock = {
+          decrement: stockDeduction,
+        }
+      } else {
+        // Fallback to old stock field for backward compatibility
+        updateData.stock = {
+          decrement: Math.round(stockDeduction),
+        }
+      }
+
+      await prisma.product.update({
+        where: { id: item.productId },
+        data: updateData,
       })
     }
 

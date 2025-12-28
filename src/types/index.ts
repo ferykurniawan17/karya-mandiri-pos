@@ -20,13 +20,33 @@ export interface Brand {
   createdAt: Date
 }
 
+export interface ProductSellingUnit {
+  id: string
+  productId: string
+  name: string
+  unit: string
+  conversionFactor: number
+  sellingPrice: number
+  isDefault: boolean
+  allowPriceBased: boolean
+  isActive: boolean
+  displayOrder: number
+  createdAt: Date
+  updatedAt: Date
+}
+
 export interface Product {
   id: string
   name: string
   sku?: string
-  stock: number
-  minimalStock: number
-  unit: string
+  stock: number  // Keep for backward compatibility
+  minimalStock: number  // Keep for backward compatibility
+  unit: string  // Keep for backward compatibility
+  productType?: 'SIMPLE' | 'MULTI_UNIT' | 'WEIGHT_BASED'
+  baseUnit?: string | null
+  baseStock?: number | null
+  minimalBaseStock?: number | null
+  purchaseUnit?: string | null
   purchasePrice?: number | null  // Optional, harga dari PO
   sellingPrice: number
   photo?: string
@@ -35,6 +55,7 @@ export interface Product {
   category: Category
   brandId?: string | null
   brand?: Brand | null
+  sellingUnits?: ProductSellingUnit[]
   createdAt: Date
   updatedAt: Date
 }
@@ -89,9 +110,12 @@ export interface TransactionItem {
   transactionId: string
   productId: string
   product: Product
+  sellingUnitId?: string | null
+  sellingUnit?: ProductSellingUnit | null
   quantity: number
   price: number
   subtotal: number
+  status?: string | null  // "diambil" or "dikirim"
 }
 
 export interface CartItem {
@@ -99,6 +123,9 @@ export interface CartItem {
   quantity: number
   subtotal: number
   customPrice?: number  // Optional custom price, jika tidak ada gunakan product.sellingPrice
+  sellingUnitId?: string
+  sellingUnit?: ProductSellingUnit
+  priceBasedAmount?: number  // Amount in rupiah for price-based sales
 }
 
 export interface POSSession {
@@ -129,6 +156,7 @@ export interface PurchaseOrderItem {
   productId: string
   product: Product
   quantity: number
+  purchaseUnit?: string | null
   purchasePrice: number
   subtotal: number
   receivedQuantity: number

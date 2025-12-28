@@ -120,6 +120,8 @@ export default function CheckoutDetail({
             productId: item.product.id,
             quantity: item.quantity,
             customPrice: item.customPrice !== undefined ? item.customPrice : undefined,
+            sellingUnitId: item.sellingUnitId || undefined,
+            priceBasedAmount: item.priceBasedAmount || undefined,
             status: itemStatuses[item.product.id] || undefined,
           })),
           cash: cashAmount,
@@ -196,6 +198,12 @@ export default function CheckoutDetail({
                           )}
                         </div>
                         <div className="mt-1">
+                          {item.sellingUnit && (
+                            <p className="text-xs text-indigo-600 font-medium mb-1">
+                              {item.sellingUnit.name}
+                              {item.priceBasedAmount && ` (Rp ${item.priceBasedAmount.toLocaleString('id-ID')})`}
+                            </p>
+                          )}
                           {hasCustomPrice ? (
                             <>
                               <p className="text-xs text-gray-400 line-through">

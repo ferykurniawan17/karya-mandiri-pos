@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { Prisma } from '@prisma/client'
+import { getEffectiveUnit } from '@/lib/product-units'
 
 export async function POST(
   request: NextRequest,
@@ -17,7 +18,7 @@ export async function POST(
     }
 
     const body = await request.json()
-    const { items } = body // Array of { itemId, receivedQuantity, purchasePrice }
+    const { items } = body // Array of { itemId, receivedQuantity, purchasePrice, purchaseUnit? }
 
     if (!items || items.length === 0) {
       return NextResponse.json(
@@ -89,22 +90,55 @@ export async function POST(
         (item) => item.id === receivedItem.itemId
       )!
 
-      // Update product stock and purchase price (from latest PO)
-      await prisma.product.update({
+      // Get product to check unit conversion
+      const product = await prisma.product.findUnique({
         where: { id: poItem.productId },
-        data: {
-          stock: {
-            increment: receivedItem.receivedQuantity,
-          },
-          purchasePrice: new Prisma.Decimal(receivedItem.purchasePrice),
-        },
       })
 
-      // Update PO item received quantity and purchase price
+      if (!product) continue
+
+      // Calculate stock increment in base unit
+      let stockIncrement = receivedItem.receivedQuantity
+      const purchaseUnit = receivedItem.purchaseUnit || poItem.purchaseUnit || product.purchaseUnit
+      const baseUnit = getEffectiveUnit(product)
+
+      // If purchase unit is different from base unit, we need conversion
+      // For now, if purchaseUnit is provided and different, assume 1:1 conversion
+      // In a full implementation, you might want to store conversion factors for purchase units
+      // For simplicity, we'll use the receivedQuantity directly if purchaseUnit matches baseUnit
+      // Otherwise, we'll need a conversion factor (which could be stored in product or calculated)
+      
+      // Update product stock and purchase price (from latest PO)
+      const updateData: any = {
+        purchasePrice: new Prisma.Decimal(receivedItem.purchasePrice),
+      }
+
+      // Use baseStock if available, otherwise stock
+      if (product.baseStock !== null && product.baseStock !== undefined) {
+        // If purchase unit is different, we might need conversion
+        // For now, assume purchaseUnit quantity = baseUnit quantity (1:1)
+        // This can be enhanced later with proper conversion factors
+        updateData.baseStock = {
+          increment: stockIncrement,
+        }
+      } else {
+        // Fallback to old stock field
+        updateData.stock = {
+          increment: Math.round(stockIncrement),
+        }
+      }
+
+      await prisma.product.update({
+        where: { id: poItem.productId },
+        data: updateData,
+      })
+
+      // Update PO item received quantity, purchase price, and purchase unit
       await prisma.purchaseOrderItem.update({
         where: { id: receivedItem.itemId },
         data: {
           receivedQuantity: receivedItem.receivedQuantity,
+          purchaseUnit: purchaseUnit || null,
           purchasePrice: new Prisma.Decimal(receivedItem.purchasePrice),
           subtotal: new Prisma.Decimal(
             receivedItem.receivedQuantity * Number(receivedItem.purchasePrice)

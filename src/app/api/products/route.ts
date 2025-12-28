@@ -37,6 +37,14 @@ export async function GET(request: NextRequest) {
         category: true,
         brand: true,
         tags: true,
+        sellingUnits: {
+          where: {
+            isActive: true,
+          },
+          orderBy: {
+            displayOrder: 'asc',
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -96,6 +104,11 @@ export async function POST(request: NextRequest) {
       stock,
       minimalStock,
       unit,
+      productType,
+      baseUnit,
+      baseStock,
+      minimalBaseStock,
+      purchaseUnit,
       purchasePrice,
       sellingPrice,
       photo,
@@ -103,9 +116,16 @@ export async function POST(request: NextRequest) {
       categoryId,
       brandId,
       tagIds,
+      sellingUnits,
     } = body
 
-    if (!name || !categoryId || !unit) {
+    // For backward compatibility, use unit/stock if baseUnit/baseStock not provided
+    const effectiveBaseUnit = baseUnit || unit
+    const effectiveBaseStock = baseStock !== undefined ? parseFloat(baseStock) : (parseInt(stock) || 0)
+    const effectiveMinimalBaseStock = minimalBaseStock !== undefined ? parseFloat(minimalBaseStock) : (parseInt(minimalStock) || 0)
+    const effectiveProductType = productType || 'SIMPLE'
+
+    if (!name || !categoryId || !effectiveBaseUnit) {
       return NextResponse.json(
         { error: 'Data tidak lengkap' },
         { status: 400 }
@@ -125,14 +145,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Create product with new fields
     const product = await prisma.product.create({
       data: {
         name,
         aliasName: aliasName || undefined,
         sku: sku || undefined,
+        // Keep old fields for backward compatibility
         stock: parseInt(stock) || 0,
         minimalStock: parseInt(minimalStock) || 0,
-        unit,
+        unit: effectiveBaseUnit,
+        // New multi-unit fields
+        productType: effectiveProductType,
+        baseUnit: effectiveBaseUnit,
+        baseStock: effectiveBaseStock,
+        minimalBaseStock: effectiveMinimalBaseStock,
+        purchaseUnit: purchaseUnit || undefined,
         purchasePrice: purchasePrice ? parseFloat(purchasePrice) : undefined,
         sellingPrice: parseFloat(sellingPrice),
         photo: photo || undefined,
@@ -142,13 +170,43 @@ export async function POST(request: NextRequest) {
         tags: tagIds && tagIds.length > 0 ? {
           connect: tagIds.map((id: string) => ({ id })),
         } : undefined,
+        // Create selling units if provided
+        sellingUnits: sellingUnits && Array.isArray(sellingUnits) && sellingUnits.length > 0 ? {
+          create: sellingUnits.map((su: any, index: number) => ({
+            name: su.name,
+            unit: su.unit,
+            conversionFactor: parseFloat(su.conversionFactor) || 1,
+            sellingPrice: parseFloat(su.sellingPrice) || parseFloat(sellingPrice),
+            isDefault: su.isDefault || (index === 0 && !sellingUnits.some((s: any) => s.isDefault)),
+            allowPriceBased: su.allowPriceBased || false,
+            isActive: su.isActive !== undefined ? su.isActive : true,
+            displayOrder: su.displayOrder !== undefined ? parseInt(su.displayOrder) : index,
+          })),
+        } : undefined,
       },
       include: {
         category: true,
         brand: true,
         tags: true,
+        sellingUnits: true,
       },
     })
+
+    // If no selling units provided, create default one
+    if (!sellingUnits || !Array.isArray(sellingUnits) || sellingUnits.length === 0) {
+      await prisma.productSellingUnit.create({
+        data: {
+          productId: product.id,
+          name: `Per ${effectiveBaseUnit}`,
+          unit: effectiveBaseUnit,
+          conversionFactor: 1,
+          sellingPrice: parseFloat(sellingPrice),
+          isDefault: true,
+          isActive: true,
+          displayOrder: 0,
+        },
+      })
+    }
 
     return NextResponse.json({
       success: true,

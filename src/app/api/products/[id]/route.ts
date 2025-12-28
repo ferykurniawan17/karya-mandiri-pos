@@ -11,6 +11,16 @@ export async function GET(
       where: { id: params.id },
       include: {
         category: true,
+        brand: true,
+        tags: true,
+        sellingUnits: {
+          where: {
+            isActive: true,
+          },
+          orderBy: {
+            displayOrder: 'asc',
+          },
+        },
       },
     })
 
@@ -52,6 +62,11 @@ export async function PUT(
       stock,
       minimalStock,
       unit,
+      productType,
+      baseUnit,
+      baseStock,
+      minimalBaseStock,
+      purchaseUnit,
       purchasePrice,
       sellingPrice,
       photo,
@@ -59,9 +74,16 @@ export async function PUT(
       categoryId,
       brandId,
       tagIds,
+      sellingUnits,
     } = body
 
-    if (!name || !categoryId || !unit) {
+    // For backward compatibility
+    const effectiveBaseUnit = baseUnit || unit
+    const effectiveBaseStock = baseStock !== undefined ? parseFloat(baseStock) : (parseInt(stock) || 0)
+    const effectiveMinimalBaseStock = minimalBaseStock !== undefined ? parseFloat(minimalBaseStock) : (parseInt(minimalStock) || 0)
+    const effectiveProductType = productType || 'SIMPLE'
+
+    if (!name || !categoryId || !effectiveBaseUnit) {
       return NextResponse.json(
         { error: 'Data tidak lengkap' },
         { status: 400 }
@@ -106,9 +128,16 @@ export async function PUT(
         name,
         aliasName: aliasName || undefined,
         sku: finalSku, // Keep existing SKU, don't allow changes
+        // Keep old fields for backward compatibility
         stock: parseInt(stock) || 0,
         minimalStock: parseInt(minimalStock) || 0,
-        unit,
+        unit: effectiveBaseUnit,
+        // New multi-unit fields
+        productType: effectiveProductType,
+        baseUnit: effectiveBaseUnit,
+        baseStock: effectiveBaseStock,
+        minimalBaseStock: effectiveMinimalBaseStock,
+        purchaseUnit: purchaseUnit || null,
         purchasePrice: purchasePrice ? parseFloat(purchasePrice) : null,
         sellingPrice: parseFloat(sellingPrice),
         photo: photo || undefined,
@@ -125,12 +154,53 @@ export async function PUT(
         category: true,
         brand: true,
         tags: true,
+        sellingUnits: true,
+      },
+    })
+
+    // Update selling units if provided
+    if (sellingUnits && Array.isArray(sellingUnits)) {
+      // Delete existing selling units (we'll recreate them)
+      await prisma.productSellingUnit.deleteMany({
+        where: { productId: params.id },
+      })
+
+      // Create new selling units
+      if (sellingUnits.length > 0) {
+        await prisma.productSellingUnit.createMany({
+          data: sellingUnits.map((su: any, index: number) => ({
+            productId: params.id,
+            name: su.name,
+            unit: su.unit,
+            conversionFactor: parseFloat(su.conversionFactor) || 1,
+            sellingPrice: parseFloat(su.sellingPrice) || parseFloat(sellingPrice),
+            isDefault: su.isDefault || (index === 0 && !sellingUnits.some((s: any) => s.isDefault)),
+            allowPriceBased: su.allowPriceBased || false,
+            isActive: su.isActive !== undefined ? su.isActive : true,
+            displayOrder: su.displayOrder !== undefined ? parseInt(su.displayOrder) : index,
+          })),
+        })
+      }
+    }
+
+    // Fetch updated product with selling units
+    const updatedProduct = await prisma.product.findUnique({
+      where: { id: params.id },
+      include: {
+        category: true,
+        brand: true,
+        tags: true,
+        sellingUnits: {
+          orderBy: {
+            displayOrder: 'asc',
+          },
+        },
       },
     })
 
     return NextResponse.json({
       success: true,
-      product,
+      product: updatedProduct,
     })
   } catch (error: any) {
     console.error('Update product error:', error)

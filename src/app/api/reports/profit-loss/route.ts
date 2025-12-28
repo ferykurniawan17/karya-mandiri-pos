@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { convertToBaseUnit } from '@/lib/product-units'
 
 export async function GET(request: NextRequest) {
   try {
@@ -42,6 +43,7 @@ export async function GET(request: NextRequest) {
         items: {
           include: {
             product: true,
+            sellingUnit: true,
           },
         },
       },
@@ -69,7 +71,14 @@ export async function GET(request: NextRequest) {
         const purchasePrice = item.product.purchasePrice
           ? Number(item.product.purchasePrice)
           : 0
-        transactionCOGS += purchasePrice * item.quantity
+        
+        // Convert quantity to base unit if selling unit exists
+        let quantityInBaseUnit = item.quantity
+        if (item.sellingUnit) {
+          quantityInBaseUnit = convertToBaseUnit(item.quantity, item.sellingUnit)
+        }
+        
+        transactionCOGS += purchasePrice * quantityInBaseUnit
       })
       totalCOGS += transactionCOGS
 
@@ -97,7 +106,14 @@ export async function GET(request: NextRequest) {
               }
             }
             const itemRevenue = Number(item.subtotal)
-            const itemCOGS = (item.product.purchasePrice ? Number(item.product.purchasePrice) : 0) * item.quantity
+            
+            // Convert quantity to base unit if selling unit exists
+            let quantityInBaseUnit = item.quantity
+            if (item.sellingUnit) {
+              quantityInBaseUnit = convertToBaseUnit(item.quantity, item.sellingUnit)
+            }
+            
+            const itemCOGS = (item.product.purchasePrice ? Number(item.product.purchasePrice) : 0) * quantityInBaseUnit
             groupedData[catName].revenue += itemRevenue
             groupedData[catName].cogs += itemCOGS
             groupedData[catName].profit = groupedData[catName].revenue - groupedData[catName].cogs

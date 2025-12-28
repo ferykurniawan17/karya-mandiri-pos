@@ -77,9 +77,14 @@ model Product {
   name              String
   aliasName         String?
   sku               String?             @unique
-  stock             Int                 @default(0)
-  minimalStock      Int                 @default(0)
-  unit              String
+  stock             Int                 @default(0) // Keep for backward compatibility
+  minimalStock      Int                 @default(0) // Keep for backward compatibility
+  unit              String              // Keep for backward compatibility
+  productType       String              @default("SIMPLE") // SIMPLE, MULTI_UNIT, WEIGHT_BASED
+  baseUnit          String?             // Unit untuk inventory (base unit)
+  baseStock         Decimal?            @default(0) // Stok dalam base unit
+  minimalBaseStock  Decimal?            @default(0) // Minimal stok dalam base unit
+  purchaseUnit      String?             // Unit saat pembelian (optional)
   purchasePrice     Decimal?            // Optional, harga dari PO
   sellingPrice      Decimal
   photo             String?
@@ -89,6 +94,7 @@ model Product {
   brandId           String?
   brand             Brand?              @relation(fields: [brandId], references: [id])
   tags              Tag[]
+  sellingUnits      ProductSellingUnit[]
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
   transactionItems TransactionItem[]
@@ -123,6 +129,8 @@ model TransactionItem {
   transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   productId     String
   product       Product     @relation(fields: [productId], references: [id])
+  sellingUnitId String?
+  sellingUnit   ProductSellingUnit? @relation(fields: [sellingUnitId], references: [id])
   quantity      Int
   price         Decimal
   subtotal      Decimal
@@ -164,10 +172,30 @@ model PurchaseOrderItem {
   productId       String
   product         Product         @relation(fields: [productId], references: [id])
   quantity        Int
+  purchaseUnit    String?         // Unit saat pembelian (optional)
   purchasePrice   Decimal         // Harga beli dari PO ini
   subtotal        Decimal
   receivedQuantity Int            @default(0)  // Jumlah yang sudah diterima
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+}
+
+model ProductSellingUnit {
+  id                String   @id @default(uuid())
+  productId         String
+  product           Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  transactionItems TransactionItem[]
+  name              String   // "Per Dus", "Per Kilo", etc
+  unit              String   // "dus", "kg", "ons", "rit", etc
+  conversionFactor  Decimal  // Faktor konversi ke base unit
+  sellingPrice      Decimal  // Harga per unit ini
+  isDefault         Boolean  @default(false)
+  allowPriceBased   Boolean  @default(false) // Support price-based sales
+  isActive          Boolean  @default(true)
+  displayOrder      Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([productId])
 }
 

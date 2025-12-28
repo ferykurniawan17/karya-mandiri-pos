@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { CartItem, POSSession, Customer, Project, Product } from "@/types";
+import { CartItem, POSSession, Customer, Project, Product, ProductSellingUnit } from "@/types";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import CheckoutDetail from "./CheckoutDetail";
 import { PriceEditModal } from "@/components/ui/price-edit-modal";
 import { AutocompleteSelect } from "@/components/ui/autocomplete-select";
+import UnitSelector from "./UnitSelector";
+import { hasMultipleSellingUnits, getDefaultSellingUnit, calculateQuantityFromPrice, getEffectiveStock } from "@/lib/product-units";
 import { X, Pencil } from "lucide-react";
 
 const STORAGE_KEY = "pos_sessions";
@@ -24,6 +26,8 @@ export default function POSInterface() {
   );
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [unitSelectorProduct, setUnitSelectorProduct] = useState<Product | null>(null);
+  const [showUnitSelector, setShowUnitSelector] = useState(false);
   const [showCheckoutDetail, setShowCheckoutDetail] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
@@ -376,7 +380,13 @@ export default function POSInterface() {
 
   // Helper function to get item price (custom or original)
   const getItemPrice = (item: CartItem): number => {
-    return item.customPrice !== undefined ? item.customPrice : Number(item.product.sellingPrice);
+    if (item.customPrice !== undefined) {
+      return item.customPrice;
+    }
+    if (item.sellingUnit) {
+      return Number(item.sellingUnit.sellingPrice);
+    }
+    return Number(item.product.sellingPrice);
   };
 
   // Cart operations
@@ -386,54 +396,101 @@ export default function POSInterface() {
       return;
     }
 
-    const activeCart = getActiveCart();
-    const existingItem = activeCart.find((item) => item.product.id === product.id);
+    // Check if product has multiple selling units
+    if (hasMultipleSellingUnits(product)) {
+      setUnitSelectorProduct(product);
+      setShowUnitSelector(true);
+      return;
+    }
 
-    // Check stock across all sessions
+    // For simple products, use default selling unit or product price
+    const defaultUnit = getDefaultSellingUnit(product);
+    addToCartWithUnit(product, defaultUnit, 1);
+  };
+
+  const addToCartWithUnit = (
+    product: Product,
+    sellingUnit: ProductSellingUnit | null,
+    quantity: number,
+    priceBasedAmount?: number
+  ) => {
+    if (!activeSessionId) {
+      createNewSession();
+      return;
+    }
+
+    const activeCart = getActiveCart();
+    const existingItem = activeCart.find(
+      (item) => item.product.id === product.id && item.sellingUnitId === sellingUnit?.id
+    );
+
+    // Calculate effective quantity and price
+    let effectiveQuantity = quantity;
+    let itemPrice = sellingUnit ? Number(sellingUnit.sellingPrice) : Number(product.sellingPrice);
+    
+    if (priceBasedAmount && sellingUnit && sellingUnit.allowPriceBased) {
+      // Calculate quantity from price
+      effectiveQuantity = calculateQuantityFromPrice(priceBasedAmount, sellingUnit);
+      itemPrice = priceBasedAmount / effectiveQuantity;
+    }
+
+    // Check stock
+    const effectiveStock = getEffectiveStock(product);
     const totalInCarts = sessions.reduce((sum, session) => {
-      const item = session.cart.find((i) => i.product.id === product.id);
-      return sum + (item?.quantity || 0);
+      const item = session.cart.find(
+        (i) => i.product.id === product.id && i.sellingUnitId === sellingUnit?.id
+      );
+      if (!item) return sum;
+      
+      // For price-based, we need to calculate base quantity
+      if (item.priceBasedAmount && item.sellingUnit) {
+        return sum + calculateQuantityFromPrice(item.priceBasedAmount, item.sellingUnit);
+      }
+      return sum + item.quantity;
     }, 0);
 
     if (existingItem) {
-      // Check if adding 1 more would exceed stock
-      if (totalInCarts + 1 > product.stock) {
+      const newQuantity = existingItem.quantity + effectiveQuantity;
+      if (totalInCarts + effectiveQuantity > effectiveStock) {
         alert("Stok tidak mencukupi");
         return;
       }
       updateActiveSession((session) => ({
         ...session,
         cart: session.cart.map((item) => {
-          if (item.product.id === product.id) {
-            const itemPrice = getItemPrice(item);
+          if (item.product.id === product.id && item.sellingUnitId === sellingUnit?.id) {
+            const finalPrice = priceBasedAmount ? priceBasedAmount : (newQuantity * itemPrice);
             return {
               ...item,
-              quantity: item.quantity + 1,
-              subtotal: (item.quantity + 1) * itemPrice,
+              quantity: newQuantity,
+              subtotal: finalPrice,
+              priceBasedAmount: priceBasedAmount || item.priceBasedAmount,
             };
           }
           return item;
         }),
       }));
     } else {
-      // Check if adding 1 new item would exceed stock
-      if (totalInCarts + 1 > product.stock) {
+      if (totalInCarts + effectiveQuantity > effectiveStock) {
         alert("Stok tidak mencukupi");
         return;
       }
       const newCartItem: CartItem = {
         product,
-        quantity: 1,
-        subtotal: Number(product.sellingPrice),
+        quantity: effectiveQuantity,
+        subtotal: priceBasedAmount || (effectiveQuantity * itemPrice),
+        sellingUnitId: sellingUnit?.id,
+        sellingUnit: sellingUnit || undefined,
+        priceBasedAmount: priceBasedAmount,
       };
       updateActiveSession((session) => ({
         ...session,
-        cart: [
-          ...session.cart,
-          newCartItem,
-        ],
+        cart: [...session.cart, newCartItem],
       }));
     }
+
+    setShowUnitSelector(false);
+    setUnitSelectorProduct(null);
   };
 
   const updateQuantity = (productId: string, quantity: number) => {
@@ -693,6 +750,12 @@ export default function POSInterface() {
                               )}
                             </div>
                             <div className="mt-1">
+                              {item.sellingUnit && (
+                                <p className="text-xs text-indigo-600 font-medium mb-1">
+                                  {item.sellingUnit.name}
+                                  {item.priceBasedAmount && " (Price-Based)"}
+                                </p>
+                              )}
                               {hasCustomPrice ? (
                                 <>
                                   <p className="text-xs text-gray-400 line-through">
@@ -1072,6 +1135,21 @@ export default function POSInterface() {
           />
         );
       })()}
+
+      {/* Unit Selector Modal */}
+      {unitSelectorProduct && (
+        <UnitSelector
+          product={unitSelectorProduct}
+          open={showUnitSelector}
+          onConfirm={(sellingUnit, quantity, priceBasedAmount) => {
+            addToCartWithUnit(unitSelectorProduct, sellingUnit, quantity, priceBasedAmount);
+          }}
+          onCancel={() => {
+            setShowUnitSelector(false);
+            setUnitSelectorProduct(null);
+          }}
+        />
+      )}
     </div>
   );
 }
