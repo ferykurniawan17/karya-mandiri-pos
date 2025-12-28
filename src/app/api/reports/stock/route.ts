@@ -33,15 +33,17 @@ export async function GET(request: NextRequest) {
 
     switch (reportType) {
       case 'low-stock':
-        // Get all products and filter in JavaScript (SQLite limitation)
-        const allProducts = await prisma.product.findMany({
+        // PostgreSQL supports column comparison
+        where.stock = {
+          lte: prisma.product.fields.minimalStock,
+        }
+        products = await prisma.product.findMany({
           where,
           include: {
             category: true,
             brand: true,
           },
         })
-        products = allProducts.filter((p) => p.stock <= p.minimalStock)
         data = products.map((p) => ({
           productId: p.id,
           productName: p.name,

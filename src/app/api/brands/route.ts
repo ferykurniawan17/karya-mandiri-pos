@@ -7,7 +7,15 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const search = searchParams.get('search') || ''
 
-    let brands = await prisma.brand.findMany({
+    const where: any = {}
+    
+    // PostgreSQL case-insensitive search
+    if (search) {
+      where.name = { mode: 'insensitive', contains: search }
+    }
+
+    const brands = await prisma.brand.findMany({
+      where,
       include: {
         _count: {
           select: { products: true },
@@ -17,14 +25,6 @@ export async function GET(request: NextRequest) {
         name: 'asc',
       },
     })
-
-    // Manual case-insensitive filtering for SQLite compatibility
-    if (search) {
-      const lowerSearch = search.toLowerCase()
-      brands = brands.filter(brand => 
-        brand.name.toLowerCase().includes(lowerSearch)
-      )
-    }
 
     return NextResponse.json({ brands })
   } catch (error: any) {

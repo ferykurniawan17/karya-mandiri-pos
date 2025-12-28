@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || ''
     const categoryId = searchParams.get('categoryId')
 
-    // Build where clause for SQLite (no case-insensitive mode)
+    // Build where clause for PostgreSQL
     const where: any = {}
 
     if (categoryId) {
@@ -31,6 +31,15 @@ export async function GET(request: NextRequest) {
       where.brandId = { in: brandIds }
     }
 
+    // PostgreSQL case-insensitive search
+    if (search) {
+      where.OR = [
+        { name: { mode: 'insensitive', contains: search } },
+        { aliasName: { mode: 'insensitive', contains: search } },
+        { sku: { mode: 'insensitive', contains: search } },
+      ]
+    }
+
     const products = await prisma.product.findMany({
       where,
       include: {
@@ -51,30 +60,8 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    // Filter by search term (case-insensitive) if provided
-    const filteredProducts = search
-      ? products.filter(
-          (product) => {
-            const lowerSearch = search.toLowerCase()
-            // Search by product name
-            const matchesName = product.name.toLowerCase().includes(lowerSearch)
-            // Search by alias name (nama lain)
-            const matchesAliasName = product.aliasName?.toLowerCase().includes(lowerSearch) || false
-            // Search by SKU
-            const matchesSku = product.sku?.toLowerCase().includes(lowerSearch) || false
-            // Search by placement
-            const matchesPlacement = product.placement?.toLowerCase().includes(lowerSearch) || false
-            // Search by tags
-            const matchesTags = product.tags?.some(tag => 
-              tag.name.toLowerCase().includes(lowerSearch)
-            ) || false
-            // Search by brand name
-            const matchesBrand = product.brand?.name.toLowerCase().includes(lowerSearch) || false
-            
-            return matchesName || matchesAliasName || matchesSku || matchesPlacement || matchesTags || matchesBrand
-          }
-        )
-      : products
+    // No need for manual filtering with PostgreSQL - already filtered in query
+    const filteredProducts = products
 
     return NextResponse.json({ products: filteredProducts })
   } catch (error) {

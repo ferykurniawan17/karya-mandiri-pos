@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import LogoutButton from "@/components/auth/LogoutButton";
+import NetworkStatus from "@/components/network/NetworkStatus";
 import Sidebar from "./Sidebar";
 
 interface AppLayoutProps {
@@ -73,6 +74,7 @@ export default function AppLayout({
               </Link>
             </div>
             <div className="flex items-center space-x-4">
+              <NetworkStatus />
               <span className="text-gray-700">Halo, {user.name}</span>
               <LogoutButton />
             </div>

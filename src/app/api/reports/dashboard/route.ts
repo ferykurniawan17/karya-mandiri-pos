@@ -82,17 +82,13 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 5)
 
-    // Get low stock count (SQLite doesn't support comparing two columns directly)
-    // We'll fetch all products and filter in JavaScript
-    const allProducts = await prisma.product.findMany({
-      select: {
-        stock: true,
-        minimalStock: true,
-      },
-    })
-    const lowStockCount = allProducts.filter(
-      (p) => p.stock <= p.minimalStock
-    ).length
+    // PostgreSQL column comparison - use raw query
+    const result = await prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(*) as count
+      FROM "Product"
+      WHERE stock <= "minimalStock"
+    `
+    const lowStockCount = Number(result[0]?.count || 0)
 
     // Get pending credit (sum of credit where paymentStatus != 'paid')
     const pendingCreditTransactions = await prisma.transaction.findMany({

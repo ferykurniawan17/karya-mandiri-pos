@@ -50,8 +50,8 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
-      // SQLite doesn't support case-insensitive mode
-      where.invoiceNo = { contains: search };
+      // PostgreSQL case-insensitive search
+      where.invoiceNo = { mode: 'insensitive', contains: search };
     }
 
     // First, get transactions with basic info
@@ -117,38 +117,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // For each transaction, fetch items with raw SQL to get correct quantity values
-    // This is necessary because Prisma might not read REAL values correctly from SQLite
-    for (const transaction of transactions) {
-      if (transaction.items && transaction.items.length > 0) {
-        const itemIds = transaction.items.map((item: any) => item.id);
-        if (itemIds.length > 0) {
-          // Build the query with proper parameter placeholders
-          const placeholders = itemIds.map(() => "?").join(",");
-          // Fetch quantities using raw SQL to ensure correct values
-          const quantityMap = (await prisma.$queryRawUnsafe(
-            `SELECT id, CAST(quantity AS REAL) as quantity FROM TransactionItem WHERE id IN (${placeholders})`,
-            ...itemIds
-          )) as Array<{ id: string; quantity: number }>;
-
-          // Update quantities in transaction items
-          for (const item of transaction.items) {
-            const rawItem = quantityMap.find((r: any) => r.id === item.id);
-            if (rawItem) {
-              // Replace the quantity with the raw SQL value
-              const rawQty =
-                typeof rawItem.quantity === "number"
-                  ? rawItem.quantity
-                  : parseFloat(String(rawItem.quantity)) || 0;
-              item.quantity = rawQty;
-              console.log(
-                `[DEBUG GET] Updated quantity from raw SQL - itemId: ${item.id}, Prisma qty: ${item.quantity}, Raw SQL qty: ${rawQty}`
-              );
-            }
-          }
-        }
-      }
-    }
+    // PostgreSQL handles Decimal types correctly, no raw SQL needed
 
     const total = await prisma.transaction.count({ where });
 
@@ -598,81 +567,19 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // For SQLite, we need to use raw SQL to ensure decimal precision is preserved
-      // SQLite stores Decimal as REAL, and Prisma's nested create might have issues
-      const itemId = randomUUID();
-
-      console.log(
-        `[DEBUG] Using raw SQL insert - ID: ${itemId}, qtyValue: ${qtyValue} (type: ${typeof qtyValue}), priceValue: ${priceValue}, subtotalValue: ${subtotalValue}`
-      );
-
-      // Convert to string with proper decimal format for SQLite
-      // SQLite will automatically convert string numbers to REAL
-      const qtyStr = qtyValue.toString();
-      const priceStr = priceValue.toString();
-      const subtotalStr = subtotalValue.toString();
-
-      console.log(
-        `[DEBUG] String values - qty: "${qtyStr}", price: "${priceStr}", subtotal: "${subtotalStr}"`
-      );
-
-      // Use raw SQL with explicit CAST to REAL to ensure proper storage
-      await prisma.$executeRawUnsafe(
-        `INSERT INTO TransactionItem (id, transactionId, productId, sellingUnitId, quantity, price, subtotal, status)
-         VALUES (?, ?, ?, ?, CAST(? AS REAL), CAST(? AS REAL), CAST(? AS REAL), ?)`,
-        itemId,
-        transaction.id,
-        item.productId,
-        item.sellingUnitId || null,
-        qtyStr, // Pass as string - SQLite will CAST to REAL
-        priceStr,
-        subtotalStr,
-        item.status || null
-      );
-
-      console.log(
-        `[DEBUG] Item inserted with raw SQL - ID: ${itemId}, quantity: ${qtyStr}`
-      );
-
-      // Fetch back to verify using raw SQL to see what's actually stored
-      const verifyResult = (await prisma.$queryRawUnsafe(
-        `SELECT id, quantity, typeof(quantity) as qty_type FROM TransactionItem WHERE id = ?`,
-        itemId
-      )) as any[];
-
-      if (verifyResult && verifyResult.length > 0) {
-        const stored = verifyResult[0];
-        console.log(
-          `[DEBUG] Raw SQL verification - quantity: ${stored.quantity}, type: ${stored.qty_type}`
-        );
-      }
-
-      // Also fetch using Prisma to see what Prisma returns
-      const verifyItem = await prisma.transactionItem.findUnique({
-        where: { id: itemId },
-        select: { quantity: true, price: true, subtotal: true },
-      });
-
-      if (verifyItem) {
-        const verifyQty =
-          verifyItem.quantity instanceof Prisma.Decimal
-            ? verifyItem.quantity.toNumber()
-            : Number(verifyItem.quantity);
-        console.log(
-          `[DEBUG] Prisma verification - quantity: ${verifyQty} (type: ${typeof verifyItem.quantity}), expected: ${qtyValue}`
-        );
-        if (Math.abs(verifyQty - qtyValue) > 0.0001) {
-          console.error(
-            `[ERROR] Quantity mismatch! Expected: ${qtyValue}, Stored: ${verifyQty}, Diff: ${Math.abs(
-              verifyQty - qtyValue
-            )}`
-          );
-        }
-      } else {
-        console.error(
-          `[ERROR] Failed to fetch inserted item with ID: ${itemId}`
-        );
-      }
+      // PostgreSQL handles Decimal types correctly with Prisma
+      await prisma.transactionItem.create({
+        data: {
+          id: randomUUID(),
+          transactionId: transaction.id,
+          productId: item.productId,
+          sellingUnitId: item.sellingUnitId || null,
+          quantity: item.quantity,
+          price: item.price,
+          subtotal: item.subtotal,
+          status: item.status || null,
+        },
+      })
     }
 
     // Fetch the complete transaction with items
@@ -724,34 +631,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fix quantity values using raw SQL (same issue as GET endpoint)
-    // Prisma doesn't read REAL values correctly from SQLite
-    if (transactionWithItems.items && transactionWithItems.items.length > 0) {
-      const itemIds = transactionWithItems.items.map((item: any) => item.id);
-      if (itemIds.length > 0) {
-        // Fetch quantities using raw SQL to ensure correct values
-        const placeholders = itemIds.map(() => "?").join(",");
-        const quantityMap = (await prisma.$queryRawUnsafe(
-          `SELECT id, CAST(quantity AS REAL) as quantity FROM TransactionItem WHERE id IN (${placeholders})`,
-          ...itemIds
-        )) as Array<{ id: string; quantity: number }>;
-
-        // Update quantities in transaction items
-        for (const item of transactionWithItems.items) {
-          const rawItem = quantityMap.find((r: any) => r.id === item.id);
-          if (rawItem) {
-            const rawQty =
-              typeof rawItem.quantity === "number"
-                ? rawItem.quantity
-                : parseFloat(String(rawItem.quantity)) || 0;
-            item.quantity = rawQty;
-            console.log(
-              `[DEBUG POST] Updated quantity from raw SQL - itemId: ${item.id}, Prisma qty: ${item.quantity}, Raw SQL qty: ${rawQty}`
-            );
-          }
-        }
-      }
-    }
+    // PostgreSQL handles Decimal types correctly, no raw SQL needed
 
     // Debug: Verify quantity after create
     console.log(`[DEBUG] Transaction created. Verifying items:`);
