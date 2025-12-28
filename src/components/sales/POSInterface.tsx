@@ -9,6 +9,7 @@ import { PriceEditModal } from "@/components/ui/price-edit-modal";
 import { AutocompleteSelect } from "@/components/ui/autocomplete-select";
 import UnitSelector from "./UnitSelector";
 import { hasMultipleSellingUnits, getDefaultSellingUnit, calculateQuantityFromPrice, getEffectiveStock, convertToBaseUnit, convertFromBaseUnit, getEffectiveUnit } from "@/lib/product-units";
+import { validateNumberInput, formatNumberForInput } from "@/lib/utils";
 import { X, Pencil } from "lucide-react";
 
 const STORAGE_KEY = "pos_sessions";
@@ -426,7 +427,9 @@ export default function POSInterface() {
 
     // Calculate effective quantity and price
     // Quantity should always be in base unit for storage
-    let effectiveQuantity = quantity; // Initially in selling unit if sellingUnit exists
+    // Ensure quantity is a number
+    const quantityNum = typeof quantity === 'string' ? parseFloat(quantity) : Number(quantity);
+    let effectiveQuantity = quantityNum; // Initially in selling unit if sellingUnit exists
     let itemPrice = sellingUnit ? Number(sellingUnit.sellingPrice) : Number(product.sellingPrice);
     
     if (priceBasedAmount && sellingUnit && sellingUnit.allowPriceBased) {
@@ -435,7 +438,13 @@ export default function POSInterface() {
       itemPrice = priceBasedAmount / effectiveQuantity;
     } else if (sellingUnit) {
       // Convert selling unit quantity to base unit
-      effectiveQuantity = convertToBaseUnit(quantity, sellingUnit);
+      effectiveQuantity = convertToBaseUnit(quantityNum, sellingUnit);
+    }
+    
+    // Ensure effectiveQuantity is a valid number
+    if (isNaN(effectiveQuantity) || effectiveQuantity <= 0) {
+      alert("Quantity tidak valid");
+      return;
     }
 
     // Check stock (all quantities are already in base unit)
@@ -467,9 +476,9 @@ export default function POSInterface() {
                 : (newQuantity * itemPrice);
             return {
               ...item,
-              quantity: newQuantity, // Always in base unit
-              subtotal: finalPrice,
-              priceBasedAmount: priceBasedAmount || item.priceBasedAmount,
+              quantity: Number(newQuantity), // Always in base unit as number
+              subtotal: Number(finalPrice),
+              priceBasedAmount: priceBasedAmount ? Number(priceBasedAmount) : item.priceBasedAmount,
             };
           }
           return item;
@@ -490,11 +499,11 @@ export default function POSInterface() {
       
       const newCartItem: CartItem = {
         product,
-        quantity: effectiveQuantity, // Always stored in base unit
-        subtotal,
+        quantity: Number(effectiveQuantity), // Always stored in base unit as number
+        subtotal: Number(subtotal),
         sellingUnitId: sellingUnit?.id,
         sellingUnit: sellingUnit || undefined,
-        priceBasedAmount: priceBasedAmount,
+        priceBasedAmount: priceBasedAmount ? Number(priceBasedAmount) : undefined,
       };
       updateActiveSession((session) => ({
         ...session,
@@ -834,20 +843,24 @@ export default function POSInterface() {
                               -
                             </button>
                             <input
-                              type="number"
-                              min="0.01"
-                              step="0.01"
-                              value={item.quantity}
+                              type="text"
+                              inputMode="decimal"
+                              value={formatNumberForInput(item.quantity)}
                               onChange={(e) => {
-                                const newQuantity = parseFloat(e.target.value) || 0;
-                                if (newQuantity > 0) {
-                                  updateQuantity(item.product.id, newQuantity);
+                                const value = e.target.value;
+                                const numValue = validateNumberInput(value, { min: 0.01, allowDecimal: true });
+                                if (numValue !== null && numValue > 0) {
+                                  updateQuantity(item.product.id, numValue);
+                                } else if (value === "" || value === "." || value === "0.") {
+                                  // Allow typing, will validate on blur
                                 }
                               }}
                               onBlur={(e) => {
-                                const value = parseFloat(e.target.value);
-                                if (!value || value <= 0) {
+                                const numValue = validateNumberInput(e.target.value, { min: 0.01, allowDecimal: true });
+                                if (numValue === null || numValue <= 0) {
                                   updateQuantity(item.product.id, 0.01);
+                                } else {
+                                  updateQuantity(item.product.id, numValue);
                                 }
                               }}
                               className="w-16 text-center border border-gray-300 rounded px-1 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -1028,18 +1041,41 @@ export default function POSInterface() {
               </>
             )}
             <hr />
-            {lastTransaction.items.map((item: any) => (
-              <div key={item.id} className="receipt-item">
-                <div className="receipt-item-name">{item.product.name}</div>
-                <div className="receipt-item-detail">
-                  {item.quantity} x {formatCurrency(item.price)}
-                  {item.status && ` (${item.status})`}
+            {lastTransaction.items.map((item: any) => {
+              // Determine the unit and quantity to display
+              // If sellingUnit exists, show quantity in selling unit, otherwise show in base unit
+              let displayQuantity = Number(item.quantity);
+              let displayUnit = item.product.baseUnit || item.product.unit;
+              let displayPrice = Number(item.price);
+              
+              if (item.sellingUnit) {
+                // Convert from base unit to selling unit for display
+                displayQuantity = convertFromBaseUnit(displayQuantity, item.sellingUnit);
+                displayUnit = item.sellingUnit.unit;
+                // Use selling unit price, not the stored price (which might be custom)
+                displayPrice = Number(item.sellingUnit.sellingPrice);
+              }
+              
+              // Format quantity with Indonesian locale (comma as decimal separator)
+              const formattedQuantity = displayQuantity.toLocaleString('id-ID', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 3,
+                useGrouping: false
+              });
+              
+              return (
+                <div key={item.id} className="receipt-item">
+                  <div className="receipt-item-name">{item.product.name}</div>
+                  <div className="receipt-item-detail">
+                    {formattedQuantity} {displayUnit} x {formatCurrency(displayPrice)}
+                    {item.status && ` (${item.status})`}
+                  </div>
+                  <div className="receipt-item-price">
+                    {formatCurrency(item.subtotal)}
+                  </div>
                 </div>
-                <div className="receipt-item-price">
-                  {formatCurrency(item.subtotal)}
-                </div>
-              </div>
-            ))}
+              );
+            })}
             <hr />
             <div className="receipt-total">
               <div>
@@ -1107,18 +1143,41 @@ export default function POSInterface() {
                   </div>
                 )}
                 <hr className="my-3" />
-                {lastTransaction.items.map((item: any) => (
-                  <div key={item.id} className="flex justify-between">
-                    <div>
-                      <p className="font-medium">{item.product.name}</p>
-                      <p className="text-xs text-gray-500">
-                        {item.quantity} x {formatCurrency(item.price)}
-                        {item.status && ` (${item.status})`}
-                      </p>
+                {lastTransaction.items.map((item: any) => {
+                  // Determine the unit, quantity, and price to display
+                  // If sellingUnit exists, show quantity in selling unit, otherwise show in base unit
+                  let displayQuantity = Number(item.quantity);
+                  let displayUnit = item.product.baseUnit || item.product.unit;
+                  let displayPrice = Number(item.price);
+                  
+                  if (item.sellingUnit) {
+                    // Convert from base unit to selling unit for display
+                    displayQuantity = convertFromBaseUnit(displayQuantity, item.sellingUnit);
+                    displayUnit = item.sellingUnit.unit;
+                    // Use selling unit price, not the stored price (which might be custom)
+                    displayPrice = Number(item.sellingUnit.sellingPrice);
+                  }
+                  
+                  // Format quantity with Indonesian locale (comma as decimal separator)
+                  const formattedQuantity = displayQuantity.toLocaleString('id-ID', {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 3,
+                    useGrouping: false
+                  });
+                  
+                  return (
+                    <div key={item.id} className="flex justify-between">
+                      <div>
+                        <p className="font-medium">{item.product.name}</p>
+                        <p className="text-xs text-gray-500">
+                          {formattedQuantity} {displayUnit} x {formatCurrency(displayPrice)}
+                          {item.status && ` (${item.status})`}
+                        </p>
+                      </div>
+                      <span>{formatCurrency(item.subtotal)}</span>
                     </div>
-                    <span>{formatCurrency(item.subtotal)}</span>
-                  </div>
-                ))}
+                  );
+                })}
                 <hr className="my-3" />
                 <div className="flex justify-between font-semibold">
                   <span>Total:</span>

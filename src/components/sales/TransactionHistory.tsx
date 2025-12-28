@@ -1,164 +1,182 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { AutocompleteSelect } from '@/components/ui/autocomplete-select'
-import { Customer, Project } from '@/types'
+} from "@/components/ui/select";
+import { AutocompleteSelect } from "@/components/ui/autocomplete-select";
+import { Customer, Project } from "@/types";
+import { convertFromBaseUnit } from "@/lib/product-units";
 
 interface Transaction {
-  id: string
-  invoiceNo: string
-  total: number
-  cash: number
-  credit: number
-  change: number
-  paymentStatus: string
-  paymentMethod?: string
-  customer?: Customer
-  project?: Project
-  projectName?: string
-  note?: string
+  id: string;
+  invoiceNo: string;
+  total: number;
+  cash: number;
+  credit: number;
+  change: number;
+  paymentStatus: string;
+  paymentMethod?: string;
+  customer?: Customer;
+  project?: Project;
+  projectName?: string;
+  note?: string;
   user: {
-    name: string
-  }
+    name: string;
+  };
   items: {
-    id: string
+    id: string;
     product: {
-      name: string
-    }
-    quantity: number
-    price: number
-    subtotal: number
-    status?: string
-  }[]
-  createdAt: Date
+      name: string;
+    };
+    quantity: number;
+    price: number;
+    subtotal: number;
+    status?: string;
+  }[];
+  createdAt: Date;
 }
 
 export default function TransactionHistory() {
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [loading, setLoading] = useState(true)
-  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
-  
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedTransaction, setSelectedTransaction] =
+    useState<Transaction | null>(null);
+
   // Filters
-  const [customers, setCustomers] = useState<Customer[]>([])
-  const [projects, setProjects] = useState<Project[]>([])
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | undefined>()
-  const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>()
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all')
-  const [startDate, setStartDate] = useState<string>('')
-  const [endDate, setEndDate] = useState<string>('')
-  const [search, setSearch] = useState<string>('')
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<
+    string | undefined
+  >();
+  const [selectedProjectId, setSelectedProjectId] = useState<
+    string | undefined
+  >();
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [search, setSearch] = useState<string>("");
 
   useEffect(() => {
-    fetchCustomers()
-    fetchTransactions()
-  }, [])
+    fetchCustomers();
+    fetchTransactions();
+  }, []);
 
   useEffect(() => {
-    fetchTransactions()
-  }, [selectedCustomerId, selectedProjectId, paymentStatusFilter, startDate, endDate, search])
+    fetchTransactions();
+  }, [
+    selectedCustomerId,
+    selectedProjectId,
+    paymentStatusFilter,
+    startDate,
+    endDate,
+    search,
+  ]);
 
   useEffect(() => {
     if (selectedCustomerId) {
-      fetchProjectsForCustomer(selectedCustomerId)
+      fetchProjectsForCustomer(selectedCustomerId);
     } else {
-      setProjects([])
-      setSelectedProjectId(undefined)
+      setProjects([]);
+      setSelectedProjectId(undefined);
     }
-  }, [selectedCustomerId])
+  }, [selectedCustomerId]);
 
   const fetchCustomers = async () => {
     try {
-      const response = await fetch('/api/customers')
-      const data = await response.json()
+      const response = await fetch("/api/customers");
+      const data = await response.json();
       if (response.ok) {
-        setCustomers(data.customers)
+        setCustomers(data.customers);
       }
     } catch (err) {
-      console.error('Error fetching customers:', err)
+      console.error("Error fetching customers:", err);
     }
-  }
+  };
 
   const fetchProjectsForCustomer = async (customerId: string) => {
     try {
-      const response = await fetch(`/api/customers/${customerId}/projects`)
-      const data = await response.json()
+      const response = await fetch(`/api/customers/${customerId}/projects`);
+      const data = await response.json();
       if (response.ok) {
-        setProjects(data.projects)
+        setProjects(data.projects);
       }
     } catch (err) {
-      console.error('Error fetching projects:', err)
+      console.error("Error fetching projects:", err);
     }
-  }
+  };
 
   const fetchTransactions = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const params = new URLSearchParams()
-      if (selectedCustomerId) params.append('customerId', selectedCustomerId)
-      if (selectedProjectId) params.append('projectId', selectedProjectId)
-      if (paymentStatusFilter !== 'all') params.append('paymentStatus', paymentStatusFilter)
-      if (startDate) params.append('startDate', startDate)
-      if (endDate) params.append('endDate', endDate)
-      if (search) params.append('search', search)
-      params.append('limit', '100')
+      const params = new URLSearchParams();
+      if (selectedCustomerId) params.append("customerId", selectedCustomerId);
+      if (selectedProjectId) params.append("projectId", selectedProjectId);
+      if (paymentStatusFilter !== "all")
+        params.append("paymentStatus", paymentStatusFilter);
+      if (startDate) params.append("startDate", startDate);
+      if (endDate) params.append("endDate", endDate);
+      if (search) params.append("search", search);
+      params.append("limit", "100");
 
-      const response = await fetch(`/api/transactions?${params.toString()}`)
-      const data = await response.json()
+      const response = await fetch(`/api/transactions?${params.toString()}`);
+      const data = await response.json();
       if (response.ok) {
-        setTransactions(data.transactions)
+        setTransactions(data.transactions);
       }
-      setLoading(false)
+      setLoading(false);
     } catch (err) {
-      console.error('Error fetching transactions:', err)
-      setLoading(false)
+      console.error("Error fetching transactions:", err);
+      setLoading(false);
     }
-  }
+  };
 
   const resetFilters = () => {
-    setSelectedCustomerId(undefined)
-    setSelectedProjectId(undefined)
-    setPaymentStatusFilter('all')
-    setStartDate('')
-    setEndDate('')
-    setSearch('')
-  }
+    setSelectedCustomerId(undefined);
+    setSelectedProjectId(undefined);
+    setPaymentStatusFilter("all");
+    setStartDate("");
+    setEndDate("");
+    setSearch("");
+  };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(amount)
-  }
+    }).format(amount);
+  };
 
   const getPaymentStatusBadge = (status: string) => {
     const styles = {
-      paid: 'bg-green-100 text-green-800',
-      unpaid: 'bg-red-100 text-red-800',
-      partial: 'bg-yellow-100 text-yellow-800',
-    }
+      paid: "bg-green-100 text-green-800",
+      unpaid: "bg-red-100 text-red-800",
+      partial: "bg-yellow-100 text-yellow-800",
+    };
     const labels = {
-      paid: 'Lunas',
-      unpaid: 'Hutang',
-      partial: 'Cicilan',
-    }
+      paid: "Lunas",
+      unpaid: "Hutang",
+      partial: "Cicilan",
+    };
     return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${styles[status as keyof typeof styles] || 'bg-gray-100 text-gray-800'}`}>
+      <span
+        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+          styles[status as keyof typeof styles] || "bg-gray-100 text-gray-800"
+        }`}
+      >
         {labels[status as keyof typeof labels] || status}
       </span>
-    )
-  }
+    );
+  };
 
   if (loading && transactions.length === 0) {
     return (
@@ -166,7 +184,7 @@ export default function TransactionHistory() {
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
         <p className="mt-4 text-gray-600">Memuat...</p>
       </div>
-    )
+    );
   }
 
   return (
@@ -181,8 +199,8 @@ export default function TransactionHistory() {
               options={customers.map((c) => ({ id: c.id, name: c.name }))}
               value={selectedCustomerId}
               onValueChange={(value) => {
-                setSelectedCustomerId(value)
-                setSelectedProjectId(undefined)
+                setSelectedCustomerId(value);
+                setSelectedProjectId(undefined);
               }}
               placeholder="Semua pelanggan..."
               searchPlaceholder="Cari pelanggan..."
@@ -205,7 +223,10 @@ export default function TransactionHistory() {
 
           <div>
             <Label>Status Pembayaran</Label>
-            <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
+            <Select
+              value={paymentStatusFilter}
+              onValueChange={setPaymentStatusFilter}
+            >
               <SelectTrigger className="mt-1">
                 <SelectValue />
               </SelectTrigger>
@@ -261,7 +282,9 @@ export default function TransactionHistory() {
       <div className="bg-white shadow overflow-hidden sm:rounded-md">
         {transactions.length === 0 ? (
           <div className="px-6 py-8 text-center text-gray-500">
-            {loading ? 'Memuat...' : 'Tidak ada transaksi yang sesuai dengan filter'}
+            {loading
+              ? "Memuat..."
+              : "Tidak ada transaksi yang sesuai dengan filter"}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -313,25 +336,34 @@ export default function TransactionHistory() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-500">
-                        {new Date(transaction.createdAt).toLocaleDateString('id-ID')}
+                        {new Date(transaction.createdAt).toLocaleDateString(
+                          "id-ID"
+                        )}
                       </div>
                       <div className="text-xs text-gray-400">
-                        {new Date(transaction.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(transaction.createdAt).toLocaleTimeString(
+                          "id-ID",
+                          { hour: "2-digit", minute: "2-digit" }
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        {transaction.customer?.name || '-'}
+                        {transaction.customer?.name || "-"}
                       </div>
                       {transaction.customer && (
                         <div className="text-xs text-gray-500">
-                          {transaction.customer.type === 'individual' ? 'Perorangan' : 'Instansi'}
+                          {transaction.customer.type === "individual"
+                            ? "Perorangan"
+                            : "Instansi"}
                         </div>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-500">
-                        {transaction.project?.name || transaction.projectName || '-'}
+                        {transaction.project?.name ||
+                          transaction.projectName ||
+                          "-"}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -354,13 +386,17 @@ export default function TransactionHistory() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-500">
-                        {transaction.paymentMethod ? (
-                          transaction.paymentMethod === 'cash' ? 'Tunai' :
-                          transaction.paymentMethod === 'transfer' ? 'Transfer' :
-                          transaction.paymentMethod === 'credit' ? 'Kredit' :
-                          transaction.paymentMethod === 'mixed' ? 'Campuran' :
-                          transaction.paymentMethod
-                        ) : '-'}
+                        {transaction.paymentMethod
+                          ? transaction.paymentMethod === "cash"
+                            ? "Tunai"
+                            : transaction.paymentMethod === "transfer"
+                            ? "Transfer"
+                            : transaction.paymentMethod === "credit"
+                            ? "Kredit"
+                            : transaction.paymentMethod === "mixed"
+                            ? "Campuran"
+                            : transaction.paymentMethod
+                          : "-"}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -392,11 +428,17 @@ export default function TransactionHistory() {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span>No. Invoice:</span>
-                <span className="font-semibold">{selectedTransaction.invoiceNo}</span>
+                <span className="font-semibold">
+                  {selectedTransaction.invoiceNo}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Tanggal:</span>
-                <span>{new Date(selectedTransaction.createdAt).toLocaleString('id-ID')}</span>
+                <span>
+                  {new Date(selectedTransaction.createdAt).toLocaleString(
+                    "id-ID"
+                  )}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Kasir:</span>
@@ -405,28 +447,44 @@ export default function TransactionHistory() {
               {selectedTransaction.customer && (
                 <div className="flex justify-between">
                   <span>Pelanggan:</span>
-                  <span>{selectedTransaction.customer.name} ({selectedTransaction.customer.type === 'individual' ? 'Perorangan' : 'Instansi'})</span>
+                  <span>
+                    {selectedTransaction.customer.name} (
+                    {selectedTransaction.customer.type === "individual"
+                      ? "Perorangan"
+                      : "Instansi"}
+                    )
+                  </span>
                 </div>
               )}
-              {(selectedTransaction.project || selectedTransaction.projectName) && (
+              {(selectedTransaction.project ||
+                selectedTransaction.projectName) && (
                 <div className="flex justify-between">
                   <span>Proyek:</span>
-                  <span>{selectedTransaction.project?.name || selectedTransaction.projectName}</span>
+                  <span>
+                    {selectedTransaction.project?.name ||
+                      selectedTransaction.projectName}
+                  </span>
                 </div>
               )}
               <div className="flex justify-between">
                 <span>Status Pembayaran:</span>
-                <span>{getPaymentStatusBadge(selectedTransaction.paymentStatus)}</span>
+                <span>
+                  {getPaymentStatusBadge(selectedTransaction.paymentStatus)}
+                </span>
               </div>
               {selectedTransaction.paymentMethod && (
                 <div className="flex justify-between">
                   <span>Metode Pembayaran:</span>
                   <span>
-                    {selectedTransaction.paymentMethod === 'cash' ? 'Tunai' :
-                     selectedTransaction.paymentMethod === 'transfer' ? 'Transfer' :
-                     selectedTransaction.paymentMethod === 'credit' ? 'Kredit' :
-                     selectedTransaction.paymentMethod === 'mixed' ? 'Campuran' :
-                     selectedTransaction.paymentMethod}
+                    {selectedTransaction.paymentMethod === "cash"
+                      ? "Tunai"
+                      : selectedTransaction.paymentMethod === "transfer"
+                      ? "Transfer"
+                      : selectedTransaction.paymentMethod === "credit"
+                      ? "Kredit"
+                      : selectedTransaction.paymentMethod === "mixed"
+                      ? "Campuran"
+                      : selectedTransaction.paymentMethod}
                   </span>
                 </div>
               )}
@@ -438,18 +496,51 @@ export default function TransactionHistory() {
               )}
               <hr className="my-3" />
               <div className="font-semibold mb-2">Item Transaksi:</div>
-              {selectedTransaction.items.map((item) => (
-                <div key={item.id} className="flex justify-between border-b pb-2">
-                  <div>
-                    <p className="font-medium">{item.product.name}</p>
-                    <p className="text-xs text-gray-500">
-                      {item.quantity} x {formatCurrency(item.price)}
-                      {item.status && ` (${item.status})`}
-                    </p>
+              {selectedTransaction.items.map((item: any) => {
+                // Determine the unit, quantity, and price to display
+                // If sellingUnit exists, show quantity in selling unit, otherwise show in base unit
+                let displayQuantity = Number(item.quantity);
+                let displayUnit = item.product.baseUnit || item.product.unit;
+                let displayPrice = Number(item.price);
+
+                if (item.sellingUnit) {
+                  // Convert from base unit to selling unit for display
+                  displayQuantity = convertFromBaseUnit(
+                    displayQuantity,
+                    item.sellingUnit
+                  );
+                  displayUnit = item.sellingUnit.unit;
+                  // Use selling unit price, not the stored price (which might be custom)
+                  displayPrice = Number(item.sellingUnit.sellingPrice);
+                }
+
+                // Format quantity with Indonesian locale (comma as decimal separator)
+                const formattedQuantity = displayQuantity.toLocaleString(
+                  "id-ID",
+                  {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 3,
+                    useGrouping: false,
+                  }
+                );
+
+                return (
+                  <div
+                    key={item.id}
+                    className="flex justify-between border-b pb-2"
+                  >
+                    <div>
+                      <p className="font-medium">{item.product.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {formattedQuantity} {displayUnit} x{" "}
+                        {formatCurrency(displayPrice)}
+                        {item.status && ` (${item.status})`}
+                      </p>
+                    </div>
+                    <span>{formatCurrency(item.subtotal)}</span>
                   </div>
-                  <span>{formatCurrency(item.subtotal)}</span>
-                </div>
-              ))}
+                );
+              })}
               <hr className="my-3" />
               <div className="flex justify-between font-semibold">
                 <span>Total:</span>
@@ -480,5 +571,5 @@ export default function TransactionHistory() {
         </div>
       )}
     </div>
-  )
+  );
 }

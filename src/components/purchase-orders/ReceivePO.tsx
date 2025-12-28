@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { validateNumberInput, formatNumberForInput } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -182,16 +183,34 @@ export default function ReceivePO({
                   <div>
                     <Label className="text-xs">Diterima *</Label>
                     <Input
-                      type="number"
-                      min="0"
-                      max={item.orderedQuantity}
-                      value={item.receivedQuantity}
-                      onChange={(e) =>
-                        updateReceivedQuantity(
-                          item.itemId,
-                          parseInt(e.target.value) || 0
-                        )
-                      }
+                      type="text"
+                      inputMode="numeric"
+                      value={formatNumberForInput(item.receivedQuantity)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        const numValue = validateNumberInput(value, { 
+                          min: 0, 
+                          max: item.orderedQuantity,
+                          allowDecimal: false 
+                        });
+                        if (numValue !== null) {
+                          updateReceivedQuantity(item.itemId, numValue);
+                        } else if (value === "" || value === "0") {
+                          updateReceivedQuantity(item.itemId, 0);
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const numValue = validateNumberInput(e.target.value, { 
+                          min: 0, 
+                          max: item.orderedQuantity,
+                          allowDecimal: false 
+                        });
+                        if (numValue === null || numValue < 0) {
+                          updateReceivedQuantity(item.itemId, 0);
+                        } else if (numValue > item.orderedQuantity) {
+                          updateReceivedQuantity(item.itemId, item.orderedQuantity);
+                        }
+                      }}
                       className="mt-1"
                       required
                     />

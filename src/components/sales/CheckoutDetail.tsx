@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CartItem } from "@/types";
+import { convertFromBaseUnit } from "@/lib/product-units";
 
 interface CheckoutDetailProps {
   cart: CartItem[];
@@ -118,10 +119,10 @@ export default function CheckoutDetail({
         body: JSON.stringify({
           items: cart.map((item) => ({
             productId: item.product.id,
-            quantity: item.quantity,
-            customPrice: item.customPrice !== undefined ? item.customPrice : undefined,
+            quantity: Number(item.quantity), // Ensure quantity is a number
+            customPrice: item.customPrice !== undefined ? Number(item.customPrice) : undefined,
             sellingUnitId: item.sellingUnitId || undefined,
-            priceBasedAmount: item.priceBasedAmount || undefined,
+            priceBasedAmount: item.priceBasedAmount !== undefined ? Number(item.priceBasedAmount) : undefined,
             status: itemStatuses[item.product.id] || undefined,
           })),
           cash: cashAmount,
@@ -183,8 +184,35 @@ export default function CheckoutDetail({
             <Label className="mb-2 block">Item Transaksi</Label>
             <div className="space-y-3 border rounded-lg p-4">
               {cart.map((item) => {
-                const itemPrice = item.customPrice !== undefined ? item.customPrice : Number(item.product.sellingPrice);
+                // Determine the correct price to display
+                // If sellingUnit exists, use sellingUnit price, otherwise use product price
+                let displayPrice = item.customPrice !== undefined 
+                  ? item.customPrice 
+                  : (item.sellingUnit 
+                      ? Number(item.sellingUnit.sellingPrice) 
+                      : Number(item.product.sellingPrice));
                 const hasCustomPrice = item.customPrice !== undefined;
+                
+                // Determine display quantity and unit
+                // item.quantity is always stored in base unit
+                const baseQuantity = Number(item.quantity);
+                let displayQuantity = baseQuantity;
+                let displayUnit = item.product.baseUnit || item.product.unit;
+                
+                if (item.sellingUnit) {
+                  // Convert from base unit to selling unit for display
+                  displayQuantity = convertFromBaseUnit(baseQuantity, item.sellingUnit);
+                  displayUnit = item.sellingUnit.unit;
+                }
+                
+                // Format quantity with Indonesian locale (comma as decimal separator)
+                // Ensure we show at least 1 decimal place if the value is less than 1
+                const formattedQuantity = displayQuantity.toLocaleString('id-ID', {
+                  minimumFractionDigits: displayQuantity < 1 && displayQuantity > 0 ? 1 : 0,
+                  maximumFractionDigits: 3,
+                  useGrouping: false
+                });
+                
                 return (
                   <div key={item.product.id} className="border-b pb-3 last:border-b-0">
                     <div className="flex justify-between items-start gap-4">
@@ -207,24 +235,15 @@ export default function CheckoutDetail({
                           {hasCustomPrice ? (
                             <>
                               <p className="text-xs text-gray-400 line-through">
-                                {item.quantity.toLocaleString('id-ID', { 
-                                  minimumFractionDigits: 0,
-                                  maximumFractionDigits: 3 
-                                })} {item.product.baseUnit || item.product.unit} x {formatCurrency(item.product.sellingPrice)}
+                                {formattedQuantity} {displayUnit} x {formatCurrency(item.sellingUnit ? Number(item.sellingUnit.sellingPrice) : Number(item.product.sellingPrice))}
                               </p>
                               <p className="text-sm text-blue-600 font-semibold">
-                                {item.quantity.toLocaleString('id-ID', { 
-                                  minimumFractionDigits: 0,
-                                  maximumFractionDigits: 3 
-                                })} {item.product.baseUnit || item.product.unit} x {formatCurrency(itemPrice)} = {formatCurrency(item.subtotal)}
+                                {formattedQuantity} {displayUnit} x {formatCurrency(displayPrice)} = {formatCurrency(item.subtotal)}
                               </p>
                             </>
                           ) : (
                             <p className="text-sm text-gray-500">
-                              {item.quantity.toLocaleString('id-ID', { 
-                                minimumFractionDigits: 0,
-                                maximumFractionDigits: 3 
-                              })} {item.product.baseUnit || item.product.unit} x {formatCurrency(itemPrice)} = {formatCurrency(item.subtotal)}
+                              {formattedQuantity} {displayUnit} x {formatCurrency(displayPrice)} = {formatCurrency(item.subtotal)}
                             </p>
                           )}
                         </div>

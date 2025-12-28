@@ -17,6 +17,7 @@ import { MultiSelect } from "@/components/ui/multi-select";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { AutocompleteSelect } from "@/components/ui/autocomplete-select";
 import { Textarea } from "@/components/ui/textarea";
+import { validateNumberInput, formatNumberForInput } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -1098,20 +1099,54 @@ export default function ProductForm({
             </Label>
             <Input
               id="baseStock"
-              type="number"
-              min="0"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={
                 formData.productType !== "SIMPLE"
-                  ? formData.baseStock
-                  : formData.stock
+                  ? formatNumberForInput(formData.baseStock)
+                  : formatNumberForInput(formData.stock)
               }
               onChange={(e) => {
                 const value = e.target.value;
+                const numValue = validateNumberInput(value, {
+                  min: 0,
+                  allowDecimal: true,
+                });
+                const stringValue =
+                  numValue !== null ? numValue.toString() : value;
                 if (formData.productType !== "SIMPLE") {
-                  setFormData({ ...formData, baseStock: value, stock: value });
+                  setFormData({
+                    ...formData,
+                    baseStock: stringValue,
+                    stock: stringValue,
+                  });
                 } else {
-                  setFormData({ ...formData, stock: value, baseStock: value });
+                  setFormData({
+                    ...formData,
+                    stock: stringValue,
+                    baseStock: stringValue,
+                  });
+                }
+              }}
+              onBlur={(e) => {
+                const numValue = validateNumberInput(e.target.value, {
+                  min: 0,
+                  allowDecimal: true,
+                });
+                const finalValue =
+                  numValue !== null ? numValue.toString() : "0";
+                if (formData.productType !== "SIMPLE") {
+                  setFormData({
+                    ...formData,
+                    baseStock: finalValue,
+                    stock: finalValue,
+                  });
+                } else {
+                  setFormData({
+                    ...formData,
+                    stock: finalValue,
+                    baseStock: finalValue,
+                  });
                 }
               }}
             />
@@ -1124,27 +1159,53 @@ export default function ProductForm({
             </Label>
             <Input
               id="minimalBaseStock"
-              type="number"
-              min="0"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={
                 formData.productType !== "SIMPLE"
-                  ? formData.minimalBaseStock
-                  : formData.minimalStock
+                  ? formatNumberForInput(formData.minimalBaseStock)
+                  : formatNumberForInput(formData.minimalStock)
               }
               onChange={(e) => {
                 const value = e.target.value;
+                const numValue = validateNumberInput(value, {
+                  min: 0,
+                  allowDecimal: true,
+                });
+                const stringValue =
+                  numValue !== null ? numValue.toString() : value;
                 if (formData.productType !== "SIMPLE") {
                   setFormData({
                     ...formData,
-                    minimalBaseStock: value,
-                    minimalStock: value,
+                    minimalBaseStock: stringValue,
+                    minimalStock: stringValue,
                   });
                 } else {
                   setFormData({
                     ...formData,
-                    minimalStock: value,
-                    minimalBaseStock: value,
+                    minimalStock: stringValue,
+                    minimalBaseStock: stringValue,
+                  });
+                }
+              }}
+              onBlur={(e) => {
+                const numValue = validateNumberInput(e.target.value, {
+                  min: 0,
+                  allowDecimal: true,
+                });
+                const finalValue =
+                  numValue !== null ? numValue.toString() : "0";
+                if (formData.productType !== "SIMPLE") {
+                  setFormData({
+                    ...formData,
+                    minimalBaseStock: finalValue,
+                    minimalStock: finalValue,
+                  });
+                } else {
+                  setFormData({
+                    ...formData,
+                    minimalStock: finalValue,
+                    minimalBaseStock: finalValue,
                   });
                 }
               }}
@@ -1305,33 +1366,42 @@ export default function ProductForm({
                       <Label htmlFor="su-conversion">Conversion Factor *</Label>
                       <Input
                         id="su-conversion"
-                        type="number"
-                        step="0.001"
-                        min="0.001"
+                        type="text"
+                        inputMode="decimal"
                         value={
-                          sellingUnitForm.conversionFactor?.toString() || "1"
+                          formatNumberForInput(
+                            sellingUnitForm.conversionFactor
+                          ) || "1"
                         }
                         onChange={(e) => {
                           const value = e.target.value;
-                          // Allow empty string while typing
-                          if (value === "" || value === ".") {
-                            setSellingUnitForm({
-                              ...sellingUnitForm,
-                              conversionFactor: 0,
-                            });
-                            return;
-                          }
-                          const numValue = parseFloat(value);
-                          if (!isNaN(numValue) && numValue > 0) {
+                          const numValue = validateNumberInput(value, {
+                            min: 0.001,
+                            allowDecimal: true,
+                          });
+                          if (numValue !== null) {
                             setSellingUnitForm({
                               ...sellingUnitForm,
                               conversionFactor: numValue,
                             });
+                          } else if (
+                            value === "" ||
+                            value === "." ||
+                            value === "0."
+                          ) {
+                            // Allow typing
+                            setSellingUnitForm({
+                              ...sellingUnitForm,
+                              conversionFactor: 0,
+                            });
                           }
                         }}
                         onBlur={(e) => {
-                          const value = parseFloat(e.target.value);
-                          if (!value || value <= 0 || isNaN(value)) {
+                          const numValue = validateNumberInput(e.target.value, {
+                            min: 0.001,
+                            allowDecimal: true,
+                          });
+                          if (numValue === null || numValue <= 0) {
                             setSellingUnitForm({
                               ...sellingUnitForm,
                               conversionFactor: 1,

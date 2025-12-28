@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import { validateNumberInput, formatNumberForInput } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -94,11 +95,26 @@ export default function UnitSelector({
                 <div className="space-y-2">
                   <Label>Jumlah (dalam {defaultUnit.unit})</Label>
                   <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
+                    type="text"
+                    inputMode="decimal"
+                    value={formatNumberForInput(quantity)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const numValue = validateNumberInput(value, { min: 0, allowDecimal: true });
+                      if (numValue !== null) {
+                        setQuantity(numValue.toString());
+                      } else if (value === "" || value === "." || value === "0.") {
+                        setQuantity(value);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const numValue = validateNumberInput(e.target.value, { min: 0, allowDecimal: true });
+                      if (numValue === null || numValue <= 0) {
+                        setQuantity("1");
+                      } else {
+                        setQuantity(numValue.toString());
+                      }
+                    }}
                     placeholder="1"
                   />
                   <div className="flex items-center space-x-2">
@@ -127,11 +143,26 @@ export default function UnitSelector({
                 <div className="space-y-2">
                   <Label>Jumlah (dalam {defaultUnit.unit})</Label>
                   <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
+                    type="text"
+                    inputMode="decimal"
+                    value={formatNumberForInput(quantity)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const numValue = validateNumberInput(value, { min: 0, allowDecimal: true });
+                      if (numValue !== null) {
+                        setQuantity(numValue.toString());
+                      } else if (value === "" || value === "." || value === "0.") {
+                        setQuantity(value);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const numValue = validateNumberInput(e.target.value, { min: 0, allowDecimal: true });
+                      if (numValue === null || numValue <= 0) {
+                        setQuantity("1");
+                      } else {
+                        setQuantity(numValue.toString());
+                      }
+                    }}
                     placeholder="1"
                   />
                 </div>
@@ -216,11 +247,26 @@ export default function UnitSelector({
                     <div className="space-y-2">
                       <Label>Jumlah (dalam {selectedUnit.unit}) *</Label>
                       <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={quantity}
-                        onChange={(e) => setQuantity(e.target.value)}
+                        type="text"
+                        inputMode="decimal"
+                        value={formatNumberForInput(quantity)}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          const numValue = validateNumberInput(value, { min: 0, allowDecimal: true });
+                          if (numValue !== null) {
+                            setQuantity(numValue.toString());
+                          } else if (value === "" || value === "." || value === "0.") {
+                            setQuantity(value);
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const numValue = validateNumberInput(e.target.value, { min: 0, allowDecimal: true });
+                          if (numValue === null || numValue <= 0) {
+                            setQuantity("1");
+                          } else {
+                            setQuantity(numValue.toString());
+                          }
+                        }}
                         placeholder="1"
                       />
                     </div>
@@ -230,11 +276,26 @@ export default function UnitSelector({
                 <div className="space-y-2">
                   <Label>Jumlah (dalam {selectedUnit.unit}) *</Label>
                   <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
+                    type="text"
+                    inputMode="decimal"
+                    value={formatNumberForInput(quantity)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const numValue = validateNumberInput(value, { min: 0, allowDecimal: true });
+                      if (numValue !== null) {
+                        setQuantity(numValue.toString());
+                      } else if (value === "" || value === "." || value === "0.") {
+                        setQuantity(value);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const numValue = validateNumberInput(e.target.value, { min: 0, allowDecimal: true });
+                      if (numValue === null || numValue <= 0) {
+                        setQuantity("1");
+                      } else {
+                        setQuantity(numValue.toString());
+                      }
+                    }}
                     placeholder="1"
                   />
                 </div>

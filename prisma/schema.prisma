@@ -131,7 +131,7 @@ model TransactionItem {
   product       Product     @relation(fields: [productId], references: [id])
   sellingUnitId String?
   sellingUnit   ProductSellingUnit? @relation(fields: [sellingUnitId], references: [id])
-  quantity      Int
+  quantity      Decimal     // Quantity in base unit (supports decimal values)
   price         Decimal
   subtotal      Decimal
   status        String?     // "diambil" or "dikirim"

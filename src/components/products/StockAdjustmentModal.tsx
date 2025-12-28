@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { validateNumberInput, formatNumberForInput } from '@/lib/utils'
 import {
   Dialog,
   DialogContent,
@@ -132,10 +133,30 @@ export default function StockAdjustmentModal({
             </Label>
             <Input
               id="adjustment"
-              type="number"
-              step="1"
-              value={adjustment}
-              onChange={(e) => setAdjustment(e.target.value)}
+              type="text"
+              inputMode="numeric"
+              value={formatNumberForInput(adjustment)}
+              onChange={(e) => {
+                const value = e.target.value;
+                const numValue = validateNumberInput(value, { 
+                  allowDecimal: false,
+                  allowNegative: true 
+                });
+                if (numValue !== null) {
+                  setAdjustment(numValue.toString());
+                } else if (value === "" || value === "-" || value === "0") {
+                  setAdjustment(value);
+                }
+              }}
+              onBlur={(e) => {
+                const numValue = validateNumberInput(e.target.value, { 
+                  allowDecimal: false,
+                  allowNegative: true 
+                });
+                if (numValue === null) {
+                  setAdjustment("0");
+                }
+              }}
               placeholder="Masukkan jumlah (positif untuk tambah, negatif untuk kurang)"
               required
               className={error ? 'border-red-500' : ''}

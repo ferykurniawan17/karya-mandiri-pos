@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { AutocompleteSelect } from "@/components/ui/autocomplete-select";
+import { validateNumberInput, formatNumberForInput } from "@/lib/utils";
 import ProductSelectionModal from "./ProductSelectionModal";
 import {
   Dialog,
@@ -418,12 +419,34 @@ export default function PurchaseOrderForm({
                       <div className="col-span-2">
                         <Label className="text-xs">Quantity</Label>
                         <Input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) =>
-                            updateItem(index, "quantity", e.target.value)
-                          }
+                          type="text"
+                          inputMode="numeric"
+                          value={formatNumberForInput(item.quantity)}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            const numValue = validateNumberInput(value, {
+                              min: 1,
+                              allowDecimal: false,
+                            });
+                            if (numValue !== null) {
+                              updateItem(
+                                index,
+                                "quantity",
+                                numValue.toString()
+                              );
+                            } else if (value === "" || value === "0") {
+                              updateItem(index, "quantity", value);
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const numValue = validateNumberInput(
+                              e.target.value,
+                              { min: 1, allowDecimal: false }
+                            );
+                            if (numValue === null || numValue < 1) {
+                              updateItem(index, "quantity", "1");
+                            }
+                          }}
                           className="mt-1"
                           disabled={purchaseOrder?.status === "approved"}
                         />
