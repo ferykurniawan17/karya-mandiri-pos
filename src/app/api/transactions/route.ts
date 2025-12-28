@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
-import { calculateStockDeduction, getEffectiveStock } from '@/lib/product-units'
+import { calculateStockDeduction, getEffectiveStock, convertFromBaseUnit } from '@/lib/product-units'
 
 export async function GET(request: NextRequest) {
   try {
@@ -157,7 +157,9 @@ export async function POST(request: NextRequest) {
 
       // Get selling unit if provided
       let sellingUnit = null
-      let stockDeduction = item.quantity
+      
+      // Quantity from cart is already in base unit
+      let quantityInBaseUnit = item.quantity
       
       if (item.sellingUnitId) {
         sellingUnit = product.sellingUnits?.find(
@@ -171,16 +173,16 @@ export async function POST(request: NextRequest) {
           )
         }
         
-        // Calculate stock deduction in base unit
-        stockDeduction = calculateStockDeduction(item.quantity, sellingUnit)
+        // Quantity is already in base unit from cart
+        // No need to convert
       }
 
       // Check stock availability (use baseStock if available, otherwise stock)
       const effectiveStock = getEffectiveStock(product)
       
-      if (effectiveStock < stockDeduction) {
+      if (effectiveStock < quantityInBaseUnit) {
         return NextResponse.json(
-          { error: `Stok ${product.name} tidak mencukupi. Stok tersedia: ${effectiveStock}, Dibutuhkan: ${stockDeduction}` },
+          { error: `Stok ${product.name} tidak mencukupi. Stok tersedia: ${effectiveStock}, Dibutuhkan: ${quantityInBaseUnit}` },
           { status: 400 }
         )
       }
@@ -190,13 +192,23 @@ export async function POST(request: NextRequest) {
         ? Number(item.customPrice) 
         : (sellingUnit ? Number(sellingUnit.sellingPrice) : Number(product.sellingPrice))
       
-      const subtotal = itemPrice * item.quantity
+      // For subtotal calculation: if price-based, use priceBasedAmount, otherwise calculate from base quantity
+      let subtotal = 0
+      if (item.priceBasedAmount) {
+        subtotal = item.priceBasedAmount
+      } else if (sellingUnit) {
+        // Convert base quantity back to selling unit for price calculation
+        const quantityInSellingUnit = convertFromBaseUnit(quantityInBaseUnit, sellingUnit)
+        subtotal = quantityInSellingUnit * itemPrice
+      } else {
+        subtotal = quantityInBaseUnit * itemPrice
+      }
       total += subtotal
 
       transactionItems.push({
         productId: product.id,
         sellingUnitId: sellingUnit?.id || null,
-        quantity: item.quantity,
+        quantity: quantityInBaseUnit, // Store in base unit
         price: itemPrice,  // Custom or original price
         subtotal,
         status: item.status || null,
@@ -314,16 +326,8 @@ export async function POST(request: NextRequest) {
 
       if (!product) continue
 
-      // Calculate stock deduction
-      let stockDeduction = item.quantity
-      if (item.sellingUnitId) {
-        const sellingUnit = product.sellingUnits?.find(
-          (su) => su.id === item.sellingUnitId
-        )
-        if (sellingUnit) {
-          stockDeduction = calculateStockDeduction(item.quantity, sellingUnit)
-        }
-      }
+      // Quantity is already in base unit from transaction items
+      const stockDeduction = item.quantity
 
       // Update stock - use baseStock if available, otherwise stock
       const updateData: any = {}

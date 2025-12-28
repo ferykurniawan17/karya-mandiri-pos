@@ -207,15 +207,24 @@ export default function CheckoutDetail({
                           {hasCustomPrice ? (
                             <>
                               <p className="text-xs text-gray-400 line-through">
-                                {item.quantity} x {formatCurrency(item.product.sellingPrice)}
+                                {item.quantity.toLocaleString('id-ID', { 
+                                  minimumFractionDigits: 0,
+                                  maximumFractionDigits: 3 
+                                })} {item.product.baseUnit || item.product.unit} x {formatCurrency(item.product.sellingPrice)}
                               </p>
                               <p className="text-sm text-blue-600 font-semibold">
-                                {item.quantity} x {formatCurrency(itemPrice)} = {formatCurrency(item.subtotal)}
+                                {item.quantity.toLocaleString('id-ID', { 
+                                  minimumFractionDigits: 0,
+                                  maximumFractionDigits: 3 
+                                })} {item.product.baseUnit || item.product.unit} x {formatCurrency(itemPrice)} = {formatCurrency(item.subtotal)}
                               </p>
                             </>
                           ) : (
                             <p className="text-sm text-gray-500">
-                              {item.quantity} x {formatCurrency(itemPrice)} = {formatCurrency(item.subtotal)}
+                              {item.quantity.toLocaleString('id-ID', { 
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 3 
+                              })} {item.product.baseUnit || item.product.unit} x {formatCurrency(itemPrice)} = {formatCurrency(item.subtotal)}
                             </p>
                           )}
                         </div>

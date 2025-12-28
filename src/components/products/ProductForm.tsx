@@ -16,6 +16,7 @@ import { RefreshCw, Plus, Trash2, Edit2 } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { AutocompleteSelect } from "@/components/ui/autocomplete-select";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -84,16 +85,45 @@ interface ProductFormProps {
   brands: Brand[];
   onSave: () => void;
   onCancel: () => void;
+  onRefreshData?: () => void; // Callback to refresh categories, tags, brands
 }
 
 export default function ProductForm({
   product,
-  categories,
-  tags,
-  brands,
+  categories: initialCategories,
+  tags: initialTags,
+  brands: initialBrands,
   onSave,
   onCancel,
+  onRefreshData,
 }: ProductFormProps) {
+  const [categories, setCategories] = useState<Category[]>(initialCategories);
+  const [tags, setTags] = useState<Tag[]>(initialTags);
+  const [brands, setBrands] = useState<Brand[]>(initialBrands);
+  const [showCreateCategory, setShowCreateCategory] = useState(false);
+  const [showCreateTag, setShowCreateTag] = useState(false);
+  const [showCreateBrand, setShowCreateBrand] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryDescription, setNewCategoryDescription] = useState("");
+  const [newTagName, setNewTagName] = useState("");
+  const [newBrandName, setNewBrandName] = useState("");
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [creatingTag, setCreatingTag] = useState(false);
+  const [creatingBrand, setCreatingBrand] = useState(false);
+
+  // Update local state when props change
+  useEffect(() => {
+    setCategories(initialCategories);
+  }, [initialCategories]);
+
+  useEffect(() => {
+    setTags(initialTags);
+  }, [initialTags]);
+
+  useEffect(() => {
+    setBrands(initialBrands);
+  }, [initialBrands]);
+
   const [formData, setFormData] = useState({
     name: "",
     aliasName: "",
@@ -148,7 +178,7 @@ export default function ProductForm({
         baseUnit: effectiveBaseUnit,
         baseStock: effectiveBaseStock,
         minimalBaseStock: effectiveMinimalBaseStock,
-        purchaseUnit: product.purchaseUnit || "",
+        purchaseUnit: product.purchaseUnit || "__same_as_base__",
         purchasePrice: product.purchasePrice?.toString() || "",
         sellingPrice: product.sellingPrice.toString(),
         photo: product.photo || "",
@@ -195,7 +225,7 @@ export default function ProductForm({
         baseUnit: "pcs",
         baseStock: "0",
         minimalBaseStock: "0",
-        purchaseUnit: "",
+        purchaseUnit: "__same_as_base__",
         purchasePrice: "0",
         sellingPrice: "0",
         photo: "",
@@ -468,6 +498,195 @@ export default function ProductForm({
     setSellingUnits(updatedUnits);
   };
 
+  // Create Category
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) {
+      toast({
+        title: "Error",
+        description: "Nama kategori harus diisi",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCreatingCategory(true);
+    try {
+      const response = await fetch("/api/categories", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: newCategoryName.trim(),
+          description: newCategoryDescription.trim() || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        toast({
+          title: "Error",
+          description: data.error || "Gagal membuat kategori",
+          variant: "destructive",
+        });
+        setCreatingCategory(false);
+        return;
+      }
+
+      // Add to local state
+      setCategories([...categories, data.category]);
+      // Select the new category
+      setSelectedCategoryId(data.category.id);
+      setFormData((prev) => ({ ...prev, categoryId: data.category.id }));
+
+      // Reset form
+      setNewCategoryName("");
+      setNewCategoryDescription("");
+      setShowCreateCategory(false);
+
+      toast({
+        title: "Berhasil",
+        description: "Kategori berhasil ditambahkan",
+      });
+
+      // Refresh parent data if callback provided
+      onRefreshData?.();
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Terjadi kesalahan",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingCategory(false);
+    }
+  };
+
+  // Create Tag
+  const handleCreateTag = async () => {
+    if (!newTagName.trim()) {
+      toast({
+        title: "Error",
+        description: "Nama tag harus diisi",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCreatingTag(true);
+    try {
+      const response = await fetch("/api/tags", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: newTagName.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        toast({
+          title: "Error",
+          description: data.error || "Gagal membuat tag",
+          variant: "destructive",
+        });
+        setCreatingTag(false);
+        return;
+      }
+
+      // Add to local state
+      setTags([...tags, data.tag]);
+      // Select the new tag
+      setSelectedTags([...selectedTags, data.tag.id]);
+
+      // Reset form
+      setNewTagName("");
+      setShowCreateTag(false);
+
+      toast({
+        title: "Berhasil",
+        description: "Tag berhasil ditambahkan",
+      });
+
+      // Refresh parent data if callback provided
+      onRefreshData?.();
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Terjadi kesalahan",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingTag(false);
+    }
+  };
+
+  // Create Brand
+  const handleCreateBrand = async () => {
+    if (!newBrandName.trim()) {
+      toast({
+        title: "Error",
+        description: "Nama brand harus diisi",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCreatingBrand(true);
+    try {
+      const response = await fetch("/api/brands", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: newBrandName.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        toast({
+          title: "Error",
+          description: data.error || "Gagal membuat brand",
+          variant: "destructive",
+        });
+        setCreatingBrand(false);
+        return;
+      }
+
+      // Add to local state
+      setBrands([...brands, data.brand]);
+      // Select the new brand
+      setSelectedBrandId(data.brand.id);
+
+      // Reset form
+      setNewBrandName("");
+      setShowCreateBrand(false);
+
+      toast({
+        title: "Berhasil",
+        description: "Brand berhasil ditambahkan",
+      });
+
+      // Refresh parent data if callback provided
+      onRefreshData?.();
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Terjadi kesalahan",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingBrand(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -530,6 +749,11 @@ export default function ProductForm({
           unit: formData.baseUnit || formData.unit,
           stock: formData.baseStock || formData.stock,
           minimalStock: formData.minimalBaseStock || formData.minimalStock,
+          purchaseUnit:
+            formData.purchaseUnit &&
+            formData.purchaseUnit !== "__same_as_base__"
+              ? formData.purchaseUnit
+              : undefined,
           purchasePrice:
             formData.purchasePrice && parseFloat(formData.purchasePrice) > 0
               ? formData.purchasePrice
@@ -649,7 +873,19 @@ export default function ProductForm({
             </p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="category">Kategori *</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="category">Kategori *</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowCreateCategory(true)}
+                className="h-6 px-2 text-xs"
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Tambah
+              </Button>
+            </div>
             <Select
               required
               value={
@@ -681,7 +917,19 @@ export default function ProductForm({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="brand">Brand (Opsional)</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="brand">Brand (Opsional)</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowCreateBrand(true)}
+                className="h-6 px-2 text-xs"
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Tambah
+              </Button>
+            </div>
             <AutocompleteSelect
               options={brands.map((b) => ({ id: b.id, name: b.name }))}
               value={selectedBrandId || undefined}
@@ -693,7 +941,19 @@ export default function ProductForm({
             />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="tags">Tags (Opsional)</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="tags">Tags (Opsional)</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowCreateTag(true)}
+                className="h-6 px-2 text-xs"
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Tambah
+              </Button>
+            </div>
             <MultiSelect
               options={tags.map((t) => ({ id: t.id, name: t.name }))}
               selected={selectedTags}
@@ -772,16 +1032,20 @@ export default function ProductForm({
                 Purchase Unit (Unit Pembelian) - Opsional
               </Label>
               <Select
-                value={formData.purchaseUnit || ""}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, purchaseUnit: value })
-                }
+                value={formData.purchaseUnit || "__same_as_base__"}
+                onValueChange={(value) => {
+                  const purchaseUnit =
+                    value === "__same_as_base__" ? "" : value;
+                  setFormData({ ...formData, purchaseUnit });
+                }}
               >
                 <SelectTrigger id="purchaseUnit">
                   <SelectValue placeholder="Sama dengan Base Unit" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Sama dengan Base Unit</SelectItem>
+                  <SelectItem value="__same_as_base__">
+                    Sama dengan Base Unit
+                  </SelectItem>
                   <SelectItem value="pcs">Pcs</SelectItem>
                   <SelectItem value="kg">Kg</SelectItem>
                   <SelectItem value="m">Meter</SelectItem>
@@ -1042,17 +1306,38 @@ export default function ProductForm({
                       <Input
                         id="su-conversion"
                         type="number"
-                        step="0.01"
-                        min="0"
+                        step="0.001"
+                        min="0.001"
                         value={
                           sellingUnitForm.conversionFactor?.toString() || "1"
                         }
-                        onChange={(e) =>
-                          setSellingUnitForm({
-                            ...sellingUnitForm,
-                            conversionFactor: parseFloat(e.target.value) || 1,
-                          })
-                        }
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          // Allow empty string while typing
+                          if (value === "" || value === ".") {
+                            setSellingUnitForm({
+                              ...sellingUnitForm,
+                              conversionFactor: 0,
+                            });
+                            return;
+                          }
+                          const numValue = parseFloat(value);
+                          if (!isNaN(numValue) && numValue > 0) {
+                            setSellingUnitForm({
+                              ...sellingUnitForm,
+                              conversionFactor: numValue,
+                            });
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const value = parseFloat(e.target.value);
+                          if (!value || value <= 0 || isNaN(value)) {
+                            setSellingUnitForm({
+                              ...sellingUnitForm,
+                              conversionFactor: 1,
+                            });
+                          }
+                        }}
                         placeholder="1"
                       />
                       <p className="text-xs text-gray-500">
@@ -1217,6 +1502,154 @@ export default function ProductForm({
           </Button>
         </div>
       </form>
+
+      {/* Create Category Dialog */}
+      <Dialog open={showCreateCategory} onOpenChange={setShowCreateCategory}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Tambah Kategori Baru</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label htmlFor="newCategoryName">Nama Kategori *</Label>
+              <Input
+                id="newCategoryName"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                placeholder="Masukkan nama kategori"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleCreateCategory();
+                  }
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newCategoryDescription">
+                Deskripsi (Opsional)
+              </Label>
+              <Textarea
+                id="newCategoryDescription"
+                value={newCategoryDescription}
+                onChange={(e) => setNewCategoryDescription(e.target.value)}
+                placeholder="Masukkan deskripsi kategori"
+                rows={3}
+              />
+            </div>
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowCreateCategory(false);
+                  setNewCategoryName("");
+                  setNewCategoryDescription("");
+                }}
+              >
+                Batal
+              </Button>
+              <Button
+                type="button"
+                onClick={handleCreateCategory}
+                disabled={creatingCategory || !newCategoryName.trim()}
+              >
+                {creatingCategory ? "Menyimpan..." : "Simpan"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Tag Dialog */}
+      <Dialog open={showCreateTag} onOpenChange={setShowCreateTag}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Tambah Tag Baru</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label htmlFor="newTagName">Nama Tag *</Label>
+              <Input
+                id="newTagName"
+                value={newTagName}
+                onChange={(e) => setNewTagName(e.target.value)}
+                placeholder="Masukkan nama tag"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleCreateTag();
+                  }
+                }}
+              />
+            </div>
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowCreateTag(false);
+                  setNewTagName("");
+                }}
+              >
+                Batal
+              </Button>
+              <Button
+                type="button"
+                onClick={handleCreateTag}
+                disabled={creatingTag || !newTagName.trim()}
+              >
+                {creatingTag ? "Menyimpan..." : "Simpan"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Brand Dialog */}
+      <Dialog open={showCreateBrand} onOpenChange={setShowCreateBrand}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Tambah Brand Baru</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label htmlFor="newBrandName">Nama Brand *</Label>
+              <Input
+                id="newBrandName"
+                value={newBrandName}
+                onChange={(e) => setNewBrandName(e.target.value)}
+                placeholder="Masukkan nama brand"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleCreateBrand();
+                  }
+                }}
+              />
+            </div>
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowCreateBrand(false);
+                  setNewBrandName("");
+                }}
+              >
+                Batal
+              </Button>
+              <Button
+                type="button"
+                onClick={handleCreateBrand}
+                disabled={creatingBrand || !newBrandName.trim()}
+              >
+                {creatingBrand ? "Menyimpan..." : "Simpan"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

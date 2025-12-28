@@ -8,7 +8,7 @@ import CheckoutDetail from "./CheckoutDetail";
 import { PriceEditModal } from "@/components/ui/price-edit-modal";
 import { AutocompleteSelect } from "@/components/ui/autocomplete-select";
 import UnitSelector from "./UnitSelector";
-import { hasMultipleSellingUnits, getDefaultSellingUnit, calculateQuantityFromPrice, getEffectiveStock } from "@/lib/product-units";
+import { hasMultipleSellingUnits, getDefaultSellingUnit, calculateQuantityFromPrice, getEffectiveStock, convertToBaseUnit, convertFromBaseUnit, getEffectiveUnit } from "@/lib/product-units";
 import { X, Pencil } from "lucide-react";
 
 const STORAGE_KEY = "pos_sessions";
@@ -425,32 +425,32 @@ export default function POSInterface() {
     );
 
     // Calculate effective quantity and price
-    let effectiveQuantity = quantity;
+    // Quantity should always be in base unit for storage
+    let effectiveQuantity = quantity; // Initially in selling unit if sellingUnit exists
     let itemPrice = sellingUnit ? Number(sellingUnit.sellingPrice) : Number(product.sellingPrice);
     
     if (priceBasedAmount && sellingUnit && sellingUnit.allowPriceBased) {
-      // Calculate quantity from price
+      // Calculate quantity from price - already returns base unit
       effectiveQuantity = calculateQuantityFromPrice(priceBasedAmount, sellingUnit);
       itemPrice = priceBasedAmount / effectiveQuantity;
+    } else if (sellingUnit) {
+      // Convert selling unit quantity to base unit
+      effectiveQuantity = convertToBaseUnit(quantity, sellingUnit);
     }
 
-    // Check stock
+    // Check stock (all quantities are already in base unit)
     const effectiveStock = getEffectiveStock(product);
     const totalInCarts = sessions.reduce((sum, session) => {
       const item = session.cart.find(
         (i) => i.product.id === product.id && i.sellingUnitId === sellingUnit?.id
       );
       if (!item) return sum;
-      
-      // For price-based, we need to calculate base quantity
-      if (item.priceBasedAmount && item.sellingUnit) {
-        return sum + calculateQuantityFromPrice(item.priceBasedAmount, item.sellingUnit);
-      }
+      // Quantity is always stored in base unit
       return sum + item.quantity;
     }, 0);
 
     if (existingItem) {
-      const newQuantity = existingItem.quantity + effectiveQuantity;
+      const newQuantity = existingItem.quantity + effectiveQuantity; // Both already in base unit
       if (totalInCarts + effectiveQuantity > effectiveStock) {
         alert("Stok tidak mencukupi");
         return;
@@ -459,10 +459,15 @@ export default function POSInterface() {
         ...session,
         cart: session.cart.map((item) => {
           if (item.product.id === product.id && item.sellingUnitId === sellingUnit?.id) {
-            const finalPrice = priceBasedAmount ? priceBasedAmount : (newQuantity * itemPrice);
+            // For price-based, use priceBasedAmount as subtotal, otherwise calculate from base quantity
+            const finalPrice = priceBasedAmount 
+              ? priceBasedAmount 
+              : sellingUnit 
+                ? (convertFromBaseUnit(newQuantity, sellingUnit) * itemPrice)
+                : (newQuantity * itemPrice);
             return {
               ...item,
-              quantity: newQuantity,
+              quantity: newQuantity, // Always in base unit
               subtotal: finalPrice,
               priceBasedAmount: priceBasedAmount || item.priceBasedAmount,
             };
@@ -475,10 +480,18 @@ export default function POSInterface() {
         alert("Stok tidak mencukupi");
         return;
       }
+      // For price-based, subtotal is the priceBasedAmount
+      // For normal, calculate from quantity in base unit converted back to selling unit
+      const subtotal = priceBasedAmount 
+        ? priceBasedAmount 
+        : sellingUnit 
+          ? (convertFromBaseUnit(effectiveQuantity, sellingUnit) * itemPrice)
+          : (effectiveQuantity * itemPrice);
+      
       const newCartItem: CartItem = {
         product,
-        quantity: effectiveQuantity,
-        subtotal: priceBasedAmount || (effectiveQuantity * itemPrice),
+        quantity: effectiveQuantity, // Always stored in base unit
+        subtotal,
         sellingUnitId: sellingUnit?.id,
         sellingUnit: sellingUnit || undefined,
         priceBasedAmount: priceBasedAmount,
@@ -505,34 +518,48 @@ export default function POSInterface() {
       return;
     }
 
+    // Quantity is always in base unit
+    const baseQuantity = quantity;
+
     // Check stock across all sessions (excluding current session's current quantity)
+    const effectiveStock = getEffectiveStock(item.product);
     const totalInOtherSessions = sessions
       .filter((s) => s.id !== activeSessionId)
       .reduce((sum, session) => {
         const sessionItem = session.cart.find((i) => i.product.id === productId);
-        return sum + (sessionItem?.quantity || 0);
+        return sum + (sessionItem?.quantity || 0); // Already in base unit
       }, 0);
 
     // Check if new quantity + other sessions would exceed stock
-    if (quantity + totalInOtherSessions > item.product.stock) {
+    if (baseQuantity + totalInOtherSessions > effectiveStock) {
       alert("Stok tidak mencukupi");
       return;
     }
 
-      updateActiveSession((session) => ({
-        ...session,
-        cart: session.cart.map((item) => {
-          if (item.product.id === productId) {
-            const itemPrice = getItemPrice(item);
-            return {
-              ...item,
-              quantity,
-              subtotal: quantity * itemPrice,
-            };
+    updateActiveSession((session) => ({
+      ...session,
+      cart: session.cart.map((cartItem) => {
+        if (cartItem.product.id === productId) {
+          const itemPrice = getItemPrice(cartItem);
+          // Calculate subtotal: if has selling unit, convert base quantity back to selling unit for price calculation
+          let subtotal = baseQuantity * itemPrice;
+          if (cartItem.sellingUnit) {
+            const quantityInSellingUnit = convertFromBaseUnit(baseQuantity, cartItem.sellingUnit);
+            subtotal = quantityInSellingUnit * itemPrice;
           }
-          return item;
-        }),
-      }));
+          // For price-based items, keep the original priceBasedAmount
+          if (cartItem.priceBasedAmount) {
+            subtotal = cartItem.priceBasedAmount;
+          }
+          return {
+            ...cartItem,
+            quantity: baseQuantity, // Always in base unit
+            subtotal,
+          };
+        }
+        return cartItem;
+      }),
+    }));
   };
 
   const removeFromCart = (productId: string) => {
@@ -770,6 +797,13 @@ export default function POSInterface() {
                                   {formatCurrency(itemPrice)}
                                 </p>
                               )}
+                              {/* Display quantity in base unit */}
+                              <p className="text-xs text-gray-400 mt-1">
+                                Qty: {item.quantity.toLocaleString('id-ID', { 
+                                  minimumFractionDigits: 0,
+                                  maximumFractionDigits: 3 
+                                })} {getEffectiveUnit(item.product)}
+                              </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-1">
@@ -791,35 +825,41 @@ export default function POSInterface() {
                         <div className="flex items-center justify-between mt-2">
                           <div className="flex items-center space-x-2">
                             <button
-                              onClick={() =>
-                                updateQuantity(item.product.id, item.quantity - 1)
-                              }
+                              onClick={() => {
+                                const decrement = item.sellingUnit && item.sellingUnit.unit === 'kg' ? 0.1 : 1;
+                                updateQuantity(item.product.id, Math.max(0.01, item.quantity - decrement));
+                              }}
                               className="w-6 h-6 rounded border border-gray-300 flex items-center justify-center hover:bg-gray-100"
                             >
                               -
                             </button>
                             <input
                               type="number"
-                              min="1"
+                              min="0.01"
+                              step="0.01"
                               value={item.quantity}
                               onChange={(e) => {
-                                const newQuantity = parseInt(e.target.value) || 1;
+                                const newQuantity = parseFloat(e.target.value) || 0;
                                 if (newQuantity > 0) {
                                   updateQuantity(item.product.id, newQuantity);
                                 }
                               }}
                               onBlur={(e) => {
-                                const value = parseInt(e.target.value);
-                                if (!value || value < 1) {
-                                  updateQuantity(item.product.id, 1);
+                                const value = parseFloat(e.target.value);
+                                if (!value || value <= 0) {
+                                  updateQuantity(item.product.id, 0.01);
                                 }
                               }}
-                              className="w-12 text-center border border-gray-300 rounded px-1 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                              className="w-16 text-center border border-gray-300 rounded px-1 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             />
+                            <span className="text-xs text-gray-500">
+                              {getEffectiveUnit(item.product)}
+                            </span>
                             <button
-                              onClick={() =>
-                                updateQuantity(item.product.id, item.quantity + 1)
-                              }
+                              onClick={() => {
+                                const increment = item.sellingUnit && item.sellingUnit.unit === 'kg' ? 0.1 : 1;
+                                updateQuantity(item.product.id, item.quantity + increment);
+                              }}
                               className="w-6 h-6 rounded border border-gray-300 flex items-center justify-center hover:bg-gray-100"
                             >
                               +

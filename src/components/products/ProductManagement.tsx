@@ -367,6 +367,11 @@ export default function ProductManagement() {
             brands={brands}
             onSave={handleSave}
             onCancel={handleCancel}
+            onRefreshData={() => {
+              fetchCategories();
+              fetchTags();
+              fetchBrands();
+            }}
           />
         </DialogContent>
       </Dialog>
