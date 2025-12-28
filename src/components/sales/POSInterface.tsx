@@ -964,6 +964,8 @@ export default function POSInterface() {
       {showCheckoutDetail && (
         <CheckoutDetail
           cart={activeCart}
+          customerId={getActiveCustomerId()}
+          projectId={getActiveProjectId()}
           projectName={activeProjectName}
           total={getTotal()}
           onBack={() => setShowCheckoutDetail(false)}

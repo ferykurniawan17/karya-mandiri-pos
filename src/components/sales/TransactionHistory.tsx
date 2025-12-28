@@ -24,8 +24,10 @@ interface Transaction {
   change: number;
   paymentStatus: string;
   paymentMethod?: string;
-  customer?: Customer;
-  project?: Project;
+  customerId?: string | null;
+  customer?: Customer | null;
+  projectId?: string | null;
+  project?: Project | null;
   projectName?: string;
   note?: string;
   user: {
@@ -129,6 +131,16 @@ export default function TransactionHistory() {
       const response = await fetch(`/api/transactions?${params.toString()}`);
       const data = await response.json();
       if (response.ok) {
+        // Debug: Check customer and project data
+        if (data.transactions && data.transactions.length > 0) {
+          const sample = data.transactions[0];
+          console.log("[DEBUG Frontend] Sample transaction:", {
+            invoiceNo: sample.invoiceNo,
+            customerId: sample.customerId,
+            customer: sample.customer,
+            project: sample.project,
+          });
+        }
         setTransactions(data.transactions);
       }
       setLoading(false);
@@ -422,17 +434,18 @@ export default function TransactionHistory() {
 
       {/* Detail Modal */}
       {selectedTransaction && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold mb-4">Detail Transaksi</h2>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
+        <>
+          {/* Print-only receipt */}
+          <div className="receipt-print" style={{ display: "none" }}>
+            <h2>Struk Transaksi</h2>
+            <div className="receipt-info">
+              <div>
                 <span>No. Invoice:</span>
                 <span className="font-semibold">
                   {selectedTransaction.invoiceNo}
                 </span>
               </div>
-              <div className="flex justify-between">
+              <div>
                 <span>Tanggal:</span>
                 <span>
                   {new Date(selectedTransaction.createdAt).toLocaleString(
@@ -440,135 +453,277 @@ export default function TransactionHistory() {
                   )}
                 </span>
               </div>
-              <div className="flex justify-between">
+              <div>
                 <span>Kasir:</span>
                 <span>{selectedTransaction.user.name}</span>
               </div>
-              {selectedTransaction.customer && (
+              <div>
+                <span>Pelanggan:</span>
+                <span>
+                  {selectedTransaction.customer ? (
+                    <>
+                      {selectedTransaction.customer.name} (
+                      {selectedTransaction.customer.type === "individual"
+                        ? "Perorangan"
+                        : "Instansi"}
+                      )
+                    </>
+                  ) : (
+                    "-"
+                  )}
+                </span>
+              </div>
+              <div>
+                <span>Proyek:</span>
+                <span>
+                  {selectedTransaction.project?.name ||
+                    selectedTransaction.projectName ||
+                    "-"}
+                </span>
+              </div>
+            </div>
+            {selectedTransaction.note && (
+              <>
+                <hr />
+                <div className="receipt-info">
+                  <div>
+                    <span>Keterangan:</span>
+                    <span>{selectedTransaction.note}</span>
+                  </div>
+                </div>
+              </>
+            )}
+            <hr />
+            {selectedTransaction.items.map((item: any) => {
+              // Determine the unit, quantity, and price to display
+              let displayQuantity = Number(item.quantity);
+              let displayUnit = item.product.baseUnit || item.product.unit;
+              let displayPrice = Number(item.price);
+
+              if (item.sellingUnit) {
+                displayQuantity = convertFromBaseUnit(
+                  displayQuantity,
+                  item.sellingUnit
+                );
+                displayUnit = item.sellingUnit.unit;
+                displayPrice = Number(item.sellingUnit.sellingPrice);
+              }
+
+              const formattedQuantity = displayQuantity.toLocaleString(
+                "id-ID",
+                {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 3,
+                  useGrouping: false,
+                }
+              );
+
+              return (
+                <div key={item.id} className="receipt-item">
+                  <div className="receipt-item-name">{item.product.name}</div>
+                  <div className="receipt-item-detail">
+                    {formattedQuantity} {displayUnit} x{" "}
+                    {formatCurrency(displayPrice)}
+                    {item.status && ` (${item.status})`}
+                  </div>
+                  <div className="receipt-item-price">
+                    {formatCurrency(item.subtotal)}
+                  </div>
+                </div>
+              );
+            })}
+            <hr />
+            <div className="receipt-total">
+              <div>
+                <span>Total:</span>
+                <span>{formatCurrency(selectedTransaction.total)}</span>
+              </div>
+              <div>
+                <span>Bayar:</span>
+                <span>{formatCurrency(selectedTransaction.cash)}</span>
+              </div>
+            </div>
+            {selectedTransaction.change > 0 && (
+              <div className="receipt-change">
+                <div>
+                  <span>Kembalian:</span>
+                  <span>{formatCurrency(selectedTransaction.change)}</span>
+                </div>
+              </div>
+            )}
+            <hr />
+            <div
+              style={{
+                textAlign: "center",
+                marginTop: "8px",
+                fontSize: "10px",
+              }}
+            >
+              Terima Kasih
+            </div>
+          </div>
+
+          {/* Screen display */}
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 no-print">
+            <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+              <h2 className="text-2xl font-bold mb-4">Detail Transaksi</h2>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>No. Invoice:</span>
+                  <span className="font-semibold">
+                    {selectedTransaction.invoiceNo}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Tanggal:</span>
+                  <span>
+                    {new Date(selectedTransaction.createdAt).toLocaleString(
+                      "id-ID"
+                    )}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Kasir:</span>
+                  <span>{selectedTransaction.user.name}</span>
+                </div>
                 <div className="flex justify-between">
                   <span>Pelanggan:</span>
                   <span>
-                    {selectedTransaction.customer.name} (
-                    {selectedTransaction.customer.type === "individual"
-                      ? "Perorangan"
-                      : "Instansi"}
-                    )
+                    {selectedTransaction.customer ? (
+                      <>
+                        {selectedTransaction.customer.name} (
+                        {selectedTransaction.customer.type === "individual"
+                          ? "Perorangan"
+                          : "Instansi"}
+                        )
+                      </>
+                    ) : (
+                      "-"
+                    )}
                   </span>
                 </div>
-              )}
-              {(selectedTransaction.project ||
-                selectedTransaction.projectName) && (
                 <div className="flex justify-between">
                   <span>Proyek:</span>
                   <span>
                     {selectedTransaction.project?.name ||
-                      selectedTransaction.projectName}
+                      selectedTransaction.projectName ||
+                      "-"}
                   </span>
                 </div>
-              )}
-              <div className="flex justify-between">
-                <span>Status Pembayaran:</span>
-                <span>
-                  {getPaymentStatusBadge(selectedTransaction.paymentStatus)}
-                </span>
-              </div>
-              {selectedTransaction.paymentMethod && (
                 <div className="flex justify-between">
-                  <span>Metode Pembayaran:</span>
+                  <span>Status Pembayaran:</span>
                   <span>
-                    {selectedTransaction.paymentMethod === "cash"
-                      ? "Tunai"
-                      : selectedTransaction.paymentMethod === "transfer"
-                      ? "Transfer"
-                      : selectedTransaction.paymentMethod === "credit"
-                      ? "Kredit"
-                      : selectedTransaction.paymentMethod === "mixed"
-                      ? "Campuran"
-                      : selectedTransaction.paymentMethod}
+                    {getPaymentStatusBadge(selectedTransaction.paymentStatus)}
                   </span>
                 </div>
-              )}
-              {selectedTransaction.note && (
-                <div className="flex justify-between">
-                  <span>Keterangan:</span>
-                  <span>{selectedTransaction.note}</span>
-                </div>
-              )}
-              <hr className="my-3" />
-              <div className="font-semibold mb-2">Item Transaksi:</div>
-              {selectedTransaction.items.map((item: any) => {
-                // Determine the unit, quantity, and price to display
-                // If sellingUnit exists, show quantity in selling unit, otherwise show in base unit
-                let displayQuantity = Number(item.quantity);
-                let displayUnit = item.product.baseUnit || item.product.unit;
-                let displayPrice = Number(item.price);
-
-                if (item.sellingUnit) {
-                  // Convert from base unit to selling unit for display
-                  displayQuantity = convertFromBaseUnit(
-                    displayQuantity,
-                    item.sellingUnit
-                  );
-                  displayUnit = item.sellingUnit.unit;
-                  // Use selling unit price, not the stored price (which might be custom)
-                  displayPrice = Number(item.sellingUnit.sellingPrice);
-                }
-
-                // Format quantity with Indonesian locale (comma as decimal separator)
-                const formattedQuantity = displayQuantity.toLocaleString(
-                  "id-ID",
-                  {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 3,
-                    useGrouping: false,
-                  }
-                );
-
-                return (
-                  <div
-                    key={item.id}
-                    className="flex justify-between border-b pb-2"
-                  >
-                    <div>
-                      <p className="font-medium">{item.product.name}</p>
-                      <p className="text-xs text-gray-500">
-                        {formattedQuantity} {displayUnit} x{" "}
-                        {formatCurrency(displayPrice)}
-                        {item.status && ` (${item.status})`}
-                      </p>
-                    </div>
-                    <span>{formatCurrency(item.subtotal)}</span>
+                {selectedTransaction.paymentMethod && (
+                  <div className="flex justify-between">
+                    <span>Metode Pembayaran:</span>
+                    <span>
+                      {selectedTransaction.paymentMethod === "cash"
+                        ? "Tunai"
+                        : selectedTransaction.paymentMethod === "transfer"
+                        ? "Transfer"
+                        : selectedTransaction.paymentMethod === "credit"
+                        ? "Kredit"
+                        : selectedTransaction.paymentMethod === "mixed"
+                        ? "Campuran"
+                        : selectedTransaction.paymentMethod}
+                    </span>
                   </div>
-                );
-              })}
-              <hr className="my-3" />
-              <div className="flex justify-between font-semibold">
-                <span>Total:</span>
-                <span>{formatCurrency(selectedTransaction.total)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Tunai:</span>
-                <span>{formatCurrency(selectedTransaction.cash)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Hutang:</span>
-                <span>{formatCurrency(selectedTransaction.credit)}</span>
-              </div>
-              {selectedTransaction.change > 0 && (
-                <div className="flex justify-between font-semibold text-lg">
-                  <span>Kembalian:</span>
-                  <span>{formatCurrency(selectedTransaction.change)}</span>
+                )}
+                {selectedTransaction.note && (
+                  <div className="flex justify-between">
+                    <span>Keterangan:</span>
+                    <span>{selectedTransaction.note}</span>
+                  </div>
+                )}
+                <hr className="my-3" />
+                <div className="font-semibold mb-2">Item Transaksi:</div>
+                {selectedTransaction.items.map((item: any) => {
+                  // Determine the unit, quantity, and price to display
+                  // If sellingUnit exists, show quantity in selling unit, otherwise show in base unit
+                  let displayQuantity = Number(item.quantity);
+                  let displayUnit = item.product.baseUnit || item.product.unit;
+                  let displayPrice = Number(item.price);
+
+                  if (item.sellingUnit) {
+                    // Convert from base unit to selling unit for display
+                    displayQuantity = convertFromBaseUnit(
+                      displayQuantity,
+                      item.sellingUnit
+                    );
+                    displayUnit = item.sellingUnit.unit;
+                    // Use selling unit price, not the stored price (which might be custom)
+                    displayPrice = Number(item.sellingUnit.sellingPrice);
+                  }
+
+                  // Format quantity with Indonesian locale (comma as decimal separator)
+                  const formattedQuantity = displayQuantity.toLocaleString(
+                    "id-ID",
+                    {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 3,
+                      useGrouping: false,
+                    }
+                  );
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex justify-between border-b pb-2"
+                    >
+                      <div>
+                        <p className="font-medium">{item.product.name}</p>
+                        <p className="text-xs text-gray-500">
+                          {formattedQuantity} {displayUnit} x{" "}
+                          {formatCurrency(displayPrice)}
+                          {item.status && ` (${item.status})`}
+                        </p>
+                      </div>
+                      <span>{formatCurrency(item.subtotal)}</span>
+                    </div>
+                  );
+                })}
+                <hr className="my-3" />
+                <div className="flex justify-between font-semibold">
+                  <span>Total:</span>
+                  <span>{formatCurrency(selectedTransaction.total)}</span>
                 </div>
-              )}
+                <div className="flex justify-between">
+                  <span>Tunai:</span>
+                  <span>{formatCurrency(selectedTransaction.cash)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Hutang:</span>
+                  <span>{formatCurrency(selectedTransaction.credit)}</span>
+                </div>
+                {selectedTransaction.change > 0 && (
+                  <div className="flex justify-between font-semibold text-lg">
+                    <span>Kembalian:</span>
+                    <span>{formatCurrency(selectedTransaction.change)}</span>
+                  </div>
+                )}
+              </div>
+              <div className="mt-6 flex space-x-4">
+                <button
+                  onClick={() => {
+                    window.print();
+                  }}
+                  className="flex-1 bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700"
+                >
+                  Print Struk
+                </button>
+                <button
+                  onClick={() => setSelectedTransaction(null)}
+                  className="flex-1 bg-gray-300 text-gray-700 py-2 rounded hover:bg-gray-400"
+                >
+                  Tutup
+                </button>
+              </div>
             </div>
-            <button
-              onClick={() => setSelectedTransaction(null)}
-              className="mt-6 w-full bg-gray-300 text-gray-700 py-2 rounded hover:bg-gray-400"
-            >
-              Tutup
-            </button>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

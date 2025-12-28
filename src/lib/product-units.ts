@@ -24,7 +24,6 @@ export function convertFromBaseUnit(
   baseQuantity: number,
   sellingUnit: ProductSellingUnit
 ): number {
-  debugger;
   const conversionFactor = Number(sellingUnit.conversionFactor);
   if (conversionFactor === 0) return 0;
   return baseQuantity / conversionFactor;
