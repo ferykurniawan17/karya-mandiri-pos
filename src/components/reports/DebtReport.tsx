@@ -157,6 +157,98 @@ export default function DebtReport() {
     });
   };
 
+  const getDebtAge = (date: Date | string): string => {
+    const transactionDate = new Date(date);
+    const today = new Date();
+    const diffTime = today.getTime() - transactionDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) {
+      return "Hari ini";
+    } else if (diffDays === 1) {
+      return "1 hari";
+    } else if (diffDays < 30) {
+      return `${diffDays} hari`;
+    } else if (diffDays < 365) {
+      const months = Math.floor(diffDays / 30);
+      const days = diffDays % 30;
+      if (days === 0) {
+        return `${months} bulan`;
+      }
+      return `${months} bulan ${days} hari`;
+    } else {
+      const years = Math.floor(diffDays / 365);
+      const months = Math.floor((diffDays % 365) / 30);
+      if (months === 0) {
+        return `${years} tahun`;
+      }
+      return `${years} tahun ${months} bulan`;
+    }
+  };
+
+  const getAverageDebtAge = (transactions: any[]): string => {
+    if (transactions.length === 0) return "-";
+    const today = new Date();
+    const totalDays = transactions.reduce((sum, t) => {
+      const transactionDate = new Date(t.createdAt);
+      const diffTime = today.getTime() - transactionDate.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      return sum + diffDays;
+    }, 0);
+    const avgDays = Math.floor(totalDays / transactions.length);
+
+    if (avgDays === 0) {
+      return "Hari ini";
+    } else if (avgDays === 1) {
+      return "1 hari";
+    } else if (avgDays < 30) {
+      return `${avgDays} hari`;
+    } else if (avgDays < 365) {
+      const months = Math.floor(avgDays / 30);
+      const days = avgDays % 30;
+      if (days === 0) {
+        return `${months} bulan`;
+      }
+      return `${months} bulan ${days} hari`;
+    } else {
+      const years = Math.floor(avgDays / 365);
+      const months = Math.floor((avgDays % 365) / 30);
+      if (months === 0) {
+        return `${years} tahun`;
+      }
+      return `${years} tahun ${months} bulan`;
+    }
+  };
+
+  const exportColumns = reportData
+    ? viewMode === "transactions"
+      ? [
+          { header: "No. Invoice", dataKey: "No. Invoice" },
+          { header: "Tanggal", dataKey: "Tanggal" },
+          { header: "Pelanggan", dataKey: "Pelanggan" },
+          { header: "Tipe Pelanggan", dataKey: "Tipe Pelanggan" },
+          { header: "Proyek", dataKey: "Proyek" },
+          { header: "Total", dataKey: "Total" },
+          { header: "Hutang", dataKey: "Hutang" },
+          { header: "Usia Piutang", dataKey: "Usia Piutang" },
+          { header: "Status Pembayaran", dataKey: "Status Pembayaran" },
+          { header: "Metode Pembayaran", dataKey: "Metode Pembayaran" },
+          { header: "Kasir", dataKey: "Kasir" },
+        ]
+      : [
+          { header: "Nama Pelanggan", dataKey: "Nama Pelanggan" },
+          { header: "Tipe", dataKey: "Tipe" },
+          { header: "Telepon", dataKey: "Telepon" },
+          { header: "Email", dataKey: "Email" },
+          { header: "Total Hutang", dataKey: "Total Hutang" },
+          {
+            header: "Rata-rata Usia Piutang",
+            dataKey: "Rata-rata Usia Piutang",
+          },
+          { header: "Jumlah Transaksi", dataKey: "Jumlah Transaksi" },
+        ]
+    : [];
+
   const exportData = () => {
     if (!reportData) return [];
 
@@ -168,8 +260,9 @@ export default function DebtReport() {
         "Tipe Pelanggan":
           t.customer?.type === "individual" ? "Perorangan" : "Instansi",
         Proyek: t.project?.name || "-",
-        Total: t.total,
-        Hutang: t.credit,
+        Total: formatCurrency(t.total),
+        Hutang: formatCurrency(t.credit),
+        "Usia Piutang": getDebtAge(t.createdAt),
         "Status Pembayaran":
           t.paymentStatus === "unpaid" ? "Belum Lunas" : "Sebagian",
         "Metode Pembayaran": t.paymentMethod || "-",
@@ -181,7 +274,8 @@ export default function DebtReport() {
         Tipe: c.customerType === "individual" ? "Perorangan" : "Instansi",
         Telepon: c.customerPhone || "-",
         Email: c.customerEmail || "-",
-        "Total Hutang": c.totalDebt,
+        "Total Hutang": formatCurrency(c.totalDebt),
+        "Rata-rata Usia Piutang": getAverageDebtAge(c.transactions),
         "Jumlah Transaksi": c.transactionCount,
       }));
     }
@@ -200,7 +294,7 @@ export default function DebtReport() {
             <div className="bg-red-50 rounded-lg p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Total Hutang</p>
+                  <p className="text-sm text-gray-600">Total Piutang</p>
                   <p className="text-2xl font-bold text-red-600 mt-1">
                     {formatCurrency(reportData.summary.totalDebt)}
                   </p>
@@ -319,7 +413,14 @@ export default function DebtReport() {
         {/* Export Buttons */}
         {reportData && (
           <div className="flex justify-end mt-4">
-            <ExportButtons data={exportData()} filename="laporan-hutang" />
+            <ExportButtons
+              data={exportData()}
+              columns={exportColumns}
+              filename={`laporan-piutang-${
+                new Date().toISOString().split("T")[0]
+              }`}
+              title="Laporan Piutang"
+            />
           </div>
         )}
       </div>
@@ -395,6 +496,9 @@ export default function DebtReport() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-red-600">
                         {formatCurrency(transaction.credit)}
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {getDebtAge(transaction.createdAt)}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span
                           className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -433,6 +537,9 @@ export default function DebtReport() {
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Total Hutang
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Rata-rata Usia Piutang
+                    </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Jumlah Transaksi
                     </th>
@@ -468,6 +575,9 @@ export default function DebtReport() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-red-600">
                         {formatCurrency(customer.totalDebt)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {getAverageDebtAge(customer.transactions)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
                         {customer.transactionCount}
