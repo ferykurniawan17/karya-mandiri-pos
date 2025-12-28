@@ -109,7 +109,7 @@ export function getEffectiveStock(product: Product): number {
  * Returns baseUnit if available, otherwise falls back to unit
  */
 export function getEffectiveUnit(product: Product): string {
-  return product.baseUnit || product.unit || "";
+  return product.baseUnit || "";
 }
 
 /**

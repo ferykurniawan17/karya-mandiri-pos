@@ -131,9 +131,8 @@ export default function ProductForm({
     sku: "",
     stock: "0",
     minimalStock: "0",
-    unit: "pcs",
     productType: "SIMPLE" as "SIMPLE" | "MULTI_UNIT" | "WEIGHT_BASED",
-    baseUnit: "",
+    baseUnit: "pcs",
     baseStock: "0",
     minimalBaseStock: "0",
     purchaseUnit: "",
@@ -157,7 +156,7 @@ export default function ProductForm({
   useEffect(() => {
     if (product) {
       const categoryId = product.categoryId || "";
-      const effectiveBaseUnit = product.baseUnit || product.unit || "pcs";
+      const effectiveBaseUnit = product.baseUnit || "pcs";
       const effectiveBaseStock =
         product.baseStock !== null && product.baseStock !== undefined
           ? product.baseStock.toString()
@@ -174,7 +173,6 @@ export default function ProductForm({
         sku: product.sku || "",
         stock: product.stock.toString(),
         minimalStock: product.minimalStock.toString(),
-        unit: product.unit,
         productType: product.productType || "SIMPLE",
         baseUnit: effectiveBaseUnit,
         baseStock: effectiveBaseStock,
@@ -221,7 +219,6 @@ export default function ProductForm({
         sku: "",
         stock: "0",
         minimalStock: "0",
-        unit: "pcs",
         productType: "SIMPLE",
         baseUnit: "pcs",
         baseStock: "0",
@@ -747,7 +744,7 @@ export default function ProductForm({
         body: JSON.stringify({
           ...formData,
           // For backward compatibility, use unit/stock if baseUnit/baseStock not set
-          unit: formData.baseUnit || formData.unit,
+          unit: formData.baseUnit,
           stock: formData.baseStock || formData.stock,
           minimalStock: formData.minimalBaseStock || formData.minimalStock,
           purchaseUnit:
@@ -976,7 +973,7 @@ export default function ProductForm({
                 if (value === "SIMPLE" && !formData.baseUnit) {
                   setFormData((prev) => ({
                     ...prev,
-                    baseUnit: prev.unit || "pcs",
+                    baseUnit: prev.baseUnit || "pcs",
                   }));
                 }
               }}
@@ -1001,13 +998,13 @@ export default function ProductForm({
             <Label htmlFor="baseUnit">Base Unit (Unit Inventory) *</Label>
             <Select
               required
-              value={formData.baseUnit || formData.unit}
+              value={formData.baseUnit || "pcs"}
               onValueChange={(value) =>
-                setFormData({ ...formData, baseUnit: value, unit: value })
+                setFormData({ ...formData, baseUnit: value })
               }
             >
               <SelectTrigger id="baseUnit">
-                <SelectValue />
+                <SelectValue placeholder="Pilih base unit" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="pcs">Pcs</SelectItem>
@@ -1064,33 +1061,6 @@ export default function ProductForm({
               </p>
             </div>
           )}
-          <div className="space-y-2">
-            <Label htmlFor="unit">Satuan (Backward Compatibility) *</Label>
-            <Select
-              required
-              value={formData.unit}
-              onValueChange={(value) =>
-                setFormData({
-                  ...formData,
-                  unit: value,
-                  baseUnit: formData.baseUnit || value,
-                })
-              }
-            >
-              <SelectTrigger id="unit">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pcs">Pcs</SelectItem>
-                <SelectItem value="kg">Kg</SelectItem>
-                <SelectItem value="m">Meter</SelectItem>
-                <SelectItem value="m2">M²</SelectItem>
-                <SelectItem value="m3">M³</SelectItem>
-                <SelectItem value="pack">Pack</SelectItem>
-                <SelectItem value="box">Box</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
           <div className="space-y-2">
             <Label htmlFor="baseStock">
               {formData.productType !== "SIMPLE"

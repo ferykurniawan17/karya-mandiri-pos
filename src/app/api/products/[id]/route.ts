@@ -77,15 +77,15 @@ export async function PUT(
       sellingUnits,
     } = body
 
-    // For backward compatibility
-    const effectiveBaseUnit = baseUnit || unit
+    // Use baseUnit directly - it's required now
+    const effectiveBaseUnit = baseUnit
     const effectiveBaseStock = baseStock !== undefined ? parseFloat(baseStock) : (parseInt(stock) || 0)
     const effectiveMinimalBaseStock = minimalBaseStock !== undefined ? parseFloat(minimalBaseStock) : (parseInt(minimalStock) || 0)
     const effectiveProductType = productType || 'SIMPLE'
 
     if (!name || !categoryId || !effectiveBaseUnit) {
       return NextResponse.json(
-        { error: 'Data tidak lengkap' },
+        { error: 'Data tidak lengkap. Base Unit wajib diisi.' },
         { status: 400 }
       )
     }
