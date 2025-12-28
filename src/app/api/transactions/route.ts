@@ -539,6 +539,32 @@ export async function POST(request: NextRequest) {
       )
     }
     
+    // Fix quantity values using raw SQL (same issue as GET endpoint)
+    // Prisma doesn't read REAL values correctly from SQLite
+    if (transactionWithItems.items && transactionWithItems.items.length > 0) {
+      const itemIds = transactionWithItems.items.map((item: any) => item.id)
+      if (itemIds.length > 0) {
+        // Fetch quantities using raw SQL to ensure correct values
+        const placeholders = itemIds.map(() => '?').join(',')
+        const quantityMap = await prisma.$queryRawUnsafe(
+          `SELECT id, CAST(quantity AS REAL) as quantity FROM TransactionItem WHERE id IN (${placeholders})`,
+          ...itemIds
+        ) as Array<{ id: string; quantity: number }>
+        
+        // Update quantities in transaction items
+        for (const item of transactionWithItems.items) {
+          const rawItem = quantityMap.find((r: any) => r.id === item.id)
+          if (rawItem) {
+            const rawQty = typeof rawItem.quantity === 'number' 
+              ? rawItem.quantity 
+              : parseFloat(String(rawItem.quantity)) || 0
+            item.quantity = rawQty
+            console.log(`[DEBUG POST] Updated quantity from raw SQL - itemId: ${item.id}, Prisma qty: ${item.quantity}, Raw SQL qty: ${rawQty}`)
+          }
+        }
+      }
+    }
+    
     // Debug: Verify quantity after create
     console.log(`[DEBUG] Transaction created. Verifying items:`)
     if (transactionWithItems.items && transactionWithItems.items.length > 0) {
