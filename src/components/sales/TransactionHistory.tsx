@@ -337,19 +337,10 @@ export default function TransactionHistory() {
                     Total
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tunai
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Hutang
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Metode
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Kasir
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Aksi
@@ -403,11 +394,6 @@ export default function TransactionHistory() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-500">
-                        {formatCurrency(transaction.cash)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">
                         {formatCurrency(
                           transaction.remainingCredit !== undefined
                             ? transaction.remainingCredit
@@ -423,26 +409,6 @@ export default function TransactionHistory() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getPaymentStatusBadge(transaction.paymentStatus)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">
-                        {transaction.paymentMethod
-                          ? transaction.paymentMethod === "cash"
-                            ? "Tunai"
-                            : transaction.paymentMethod === "transfer"
-                            ? "Transfer"
-                            : transaction.paymentMethod === "credit"
-                            ? "Kredit"
-                            : transaction.paymentMethod === "mixed"
-                            ? "Campuran"
-                            : transaction.paymentMethod
-                          : "-"}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">
-                        {transaction.user.name}
-                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">

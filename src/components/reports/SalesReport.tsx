@@ -247,7 +247,7 @@ export default function SalesReport() {
                       <InfoTooltip content="Total jumlah unit produk yang terjual (quantity) dari semua transaksi dalam periode yang dipilih." />
                     </div>
                     <p className="text-2xl font-bold text-gray-900">
-                      {reportData.summary.totalItems}
+                      {reportData.summary.totalItems.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                     </p>
                   </div>
                   <Package className="h-8 w-8 text-purple-600" />
@@ -311,7 +311,7 @@ export default function SalesReport() {
                         {row.transactions}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {row.items}
+                        {typeof row.items === 'number' ? row.items.toLocaleString('id-ID', { maximumFractionDigits: 2 }) : row.items}
                       </td>
                     </tr>
                   ))}

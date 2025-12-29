@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
     )
     const totalTransactions = transactions.length
     const totalItems = transactions.reduce(
-      (sum, t) => sum + t.items.reduce((itemSum, item) => itemSum + item.quantity, 0),
+      (sum, t) => sum + t.items.reduce((itemSum, item) => itemSum + Number(item.quantity), 0),
       0
     )
     const averageTransaction =
@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
             }
             groupedData[catName].revenue += Number(item.subtotal)
             ;(groupedData[catName].transactions as Set<string>).add(transaction.id)
-            groupedData[catName].items += item.quantity
+            groupedData[catName].items += Number(item.quantity)
           })
           return // Skip default processing for category
         case 'customer':
@@ -141,7 +141,7 @@ export async function GET(request: NextRequest) {
             }
             groupedData[productName].revenue += Number(item.subtotal)
             ;(groupedData[productName].transactions as Set<string>).add(transaction.id)
-            groupedData[productName].items += item.quantity
+            groupedData[productName].items += Number(item.quantity)
           })
           return // Skip default processing for product
         default:
@@ -160,7 +160,7 @@ export async function GET(request: NextRequest) {
         groupedData[periodKey].revenue += Number(transaction.total)
         groupedData[periodKey].transactions += 1
         groupedData[periodKey].items += transaction.items.reduce(
-          (sum, item) => sum + item.quantity,
+          (sum, item) => sum + Number(item.quantity),
           0
         )
       }
