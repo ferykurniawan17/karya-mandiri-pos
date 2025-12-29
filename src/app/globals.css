@@ -51,15 +51,19 @@
 
 /* Print styles for thermal printer (80mm / 3 inch paper) */
 @media print {
+  /* Default page size for thermal receipts */
   @page {
-    size: 80mm auto;
-    margin: 0;
-    padding: 5mm;
+    size: A4;
+    margin: 10mm;
   }
 
   body {
     margin: 0;
     padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
   }
 
   /* Hide everything except receipt */
@@ -67,6 +71,37 @@
     visibility: hidden;
   }
 
+  /* Hide buttons and non-printable elements */
+  button,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Show payment receipt and all its children */
+  .payment-receipt-print,
+  .payment-receipt-print * {
+    visibility: visible !important;
+    color: #000 !important;
+  }
+
+  .payment-receipt-print {
+    position: relative !important;
+    left: auto !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    font-size: 12px !important;
+    line-height: 1.6 !important;
+    background: white !important;
+    display: block !important;
+    page-break-inside: avoid;
+    vertical-align: top !important;
+    align-items: flex-start !important;
+  }
+
+  /* Show thermal receipt and all its children */
   .receipt-print,
   .receipt-print * {
     visibility: visible;
@@ -87,10 +122,34 @@
     visibility: visible !important;
   }
 
-  /* Hide buttons and non-printable elements */
-  button,
-  .no-print {
-    display: none !important;
+  /* Ensure all text in payment receipt is visible and black */
+  .payment-receipt-print h2,
+  .payment-receipt-print h3,
+  .payment-receipt-print p,
+  .payment-receipt-print span,
+  .payment-receipt-print div,
+  .payment-receipt-print label {
+    color: #000 !important;
+    visibility: visible !important;
+    background: transparent !important;
+  }
+
+  /* Align payment receipt content to top */
+  .payment-receipt-print {
+    text-align: left !important;
+  }
+
+  .payment-receipt-print .text-center {
+    text-align: left !important;
+  }
+
+  /* Logo styles for print */
+  .payment-receipt-print img {
+    max-width: 200px !important;
+    height: auto !important;
+    display: block !important;
+    visibility: visible !important;
+    margin: 0 auto 10px auto !important;
   }
 
   /* Receipt header */

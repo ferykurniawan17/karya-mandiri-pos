@@ -4,9 +4,26 @@ import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AutocompleteSelect } from "@/components/ui/autocomplete-select";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Payment } from "@/types";
+
+interface Transaction {
+  id: string;
+  invoiceNo: string;
+  credit: number;
+  paymentStatus: string;
+  allocations?: Array<{ amount: number }>;
+}
 import PaymentAllocationDisplay from "./PaymentAllocationDisplay";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import PaymentReceipt from "./PaymentReceipt";
+import MultiplePaymentReceipt from "./MultiplePaymentReceipt";
+import { ChevronDown, ChevronUp, Printer } from "lucide-react";
 
 interface PaymentHistoryProps {
   customerId?: string;
@@ -34,6 +51,11 @@ export default function PaymentHistory({
   const [expandedPayments, setExpandedPayments] = useState<Set<string>>(
     new Set()
   );
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [selectedPaymentForPrint, setSelectedPaymentForPrint] = useState<Payment | null>(null);
+  const [selectedPaymentsForPrint, setSelectedPaymentsForPrint] = useState<Payment[]>([]);
+  const [printMode, setPrintMode] = useState<"single" | "multiple">("single");
+  const [transactionsForPrint, setTransactionsForPrint] = useState<Transaction[]>([]);
 
   useEffect(() => {
     fetchCustomers();
@@ -132,10 +154,40 @@ export default function PaymentHistory({
     return labels[method] || method;
   };
 
+  const handlePrintMultiple = async () => {
+    if (payments.length === 0) return;
+    
+    setSelectedPaymentsForPrint(payments);
+    setPrintMode("multiple");
+    
+    // Fetch transactions if customer is selected
+    if (initialCustomerId) {
+      try {
+        const response = await fetch(`/api/customers/${initialCustomerId}/payments`);
+        const data = await response.json();
+        if (response.ok && data.unpaidTransactions) {
+          setTransactionsForPrint(data.unpaidTransactions);
+        }
+      } catch (err) {
+        console.error("Error fetching transactions:", err);
+      }
+    }
+    
+    setShowPrintModal(true);
+  };
+
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">Filter Riwayat Pembayaran</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Filter Riwayat Pembayaran</h3>
+          {payments.length > 0 && (
+            <Button onClick={handlePrintMultiple} variant="outline" size="sm">
+              <Printer className="h-4 w-4 mr-2" />
+              Print Semua Pembayaran
+            </Button>
+          )}
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {!initialCustomerId && (
             <div>
@@ -284,16 +336,37 @@ export default function PaymentHistory({
                         {payment.user.name}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <button className="flex items-center gap-1">
-                          {expandedPayments.has(payment.id) ? (
-                            <ChevronUp className="h-4 w-4" />
-                          ) : (
-                            <ChevronDown className="h-4 w-4" />
-                          )}
-                          <span>
-                            {payment.allocations?.length || 0} transaksi
-                          </span>
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            className="flex items-center gap-1"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleExpanded(payment.id);
+                            }}
+                          >
+                            {expandedPayments.has(payment.id) ? (
+                              <ChevronUp className="h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4" />
+                            )}
+                            <span>
+                              {payment.allocations?.length || 0} transaksi
+                            </span>
+                          </button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedPaymentForPrint(payment);
+                              setPrintMode("single");
+                              setShowPrintModal(true);
+                            }}
+                            title="Print Bukti Pembayaran"
+                          >
+                            <Printer className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                     {expandedPayments.has(payment.id) && (
@@ -331,6 +404,43 @@ export default function PaymentHistory({
           </div>
         )}
       </div>
+
+      {/* Print Modal */}
+      <Dialog open={showPrintModal} onOpenChange={setShowPrintModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Bukti Pembayaran</DialogTitle>
+          </DialogHeader>
+          {printMode === "single" && selectedPaymentForPrint && (
+            <PaymentReceipt
+              payment={selectedPaymentForPrint}
+              onPrint={() => window.print()}
+            />
+          )}
+          {printMode === "multiple" && selectedPaymentsForPrint.length > 0 && (
+            <MultiplePaymentReceipt
+              payments={selectedPaymentsForPrint}
+              customer={
+                initialCustomerId
+                  ? customers.find((c) => c.id === initialCustomerId)
+                    ? {
+                        id: initialCustomerId,
+                        name:
+                          customers.find((c) => c.id === initialCustomerId)?.name ||
+                          "",
+                        type:
+                          customers.find((c) => c.id === initialCustomerId)?.type ||
+                          "individual",
+                      }
+                    : null
+                  : null
+              }
+              transactions={transactionsForPrint}
+              onPrint={() => window.print()}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
