@@ -58,18 +58,33 @@ export default function PaymentHistory({
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (customerId) params.append("customerId", customerId);
-      if (transactionId) params.append("transactionId", transactionId);
-      if (startDate) params.append("startDate", startDate);
-      if (endDate) params.append("endDate", endDate);
+      if (customerId && customerId.trim() !== "") {
+        params.append("customerId", customerId);
+      }
+      if (transactionId && transactionId.trim() !== "") {
+        params.append("transactionId", transactionId);
+      }
+      if (startDate) {
+        params.append("startDate", startDate);
+      }
+      if (endDate) {
+        params.append("endDate", endDate);
+      }
 
-      const response = await fetch(`/api/payments?${params.toString()}`);
+      const url = `/api/payments${params.toString() ? `?${params.toString()}` : ""}`;
+      console.log("[PaymentHistory] Fetching payments:", url);
+      const response = await fetch(url);
       const data = await response.json();
       if (response.ok) {
+        console.log("[PaymentHistory] Received", data.payments?.length || 0, "payments");
         setPayments(data.payments || []);
+      } else {
+        console.error("Error fetching payments:", data.error);
+        setPayments([]);
       }
     } catch (err) {
       console.error("Error fetching payments:", err);
+      setPayments([]);
     } finally {
       setLoading(false);
     }
@@ -124,7 +139,9 @@ export default function PaymentHistory({
               <AutocompleteSelect
                 options={customers.map((c) => ({ id: c.id, name: c.name }))}
                 value={customerId}
-                onValueChange={setCustomerId}
+                onValueChange={(value) => {
+                  setCustomerId(value);
+                }}
                 placeholder="Semua pelanggan"
                 searchPlaceholder="Cari pelanggan..."
               />
@@ -165,7 +182,10 @@ export default function PaymentHistory({
                     Tanggal
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Pelanggan/Transaksi
+                    Pelanggan
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Transaksi
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Jumlah
@@ -202,14 +222,43 @@ export default function PaymentHistory({
                                 : "Instansi"}
                             </p>
                           </div>
-                        ) : payment.transaction ? (
+                        ) : payment.transaction?.customer ? (
                           <div>
-                            <p className="font-medium">
-                              {payment.transaction.invoiceNo}
+                            <p className="font-medium">{payment.transaction.customer.name}</p>
+                            <p className="text-xs text-gray-500">
+                              {payment.transaction.customer.type === "individual"
+                                ? "Perorangan"
+                                : "Instansi"}
+                            </p>
+                          </div>
+                        ) : payment.allocations && payment.allocations.length > 0 && payment.allocations[0].transaction?.customer ? (
+                          <div>
+                            <p className="font-medium">{payment.allocations[0].transaction.customer.name}</p>
+                            <p className="text-xs text-gray-500">
+                              {payment.allocations[0].transaction.customer.type === "individual"
+                                ? "Perorangan"
+                                : "Instansi"}
                             </p>
                           </div>
                         ) : (
-                          "-"
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {payment.transaction ? (
+                          <p className="font-medium">
+                            {payment.transaction.invoiceNo}
+                          </p>
+                        ) : payment.allocations && payment.allocations.length > 0 ? (
+                          <div>
+                            {payment.allocations.map((alloc, idx) => (
+                              <p key={idx} className="text-xs">
+                                {alloc.transaction?.invoiceNo || "-"}
+                              </p>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">-</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-green-600">
@@ -236,7 +285,7 @@ export default function PaymentHistory({
                     </tr>
                     {expandedPayments.has(payment.id) && (
                       <tr>
-                        <td colSpan={6} className="px-6 py-4 bg-gray-50">
+                        <td colSpan={7} className="px-6 py-4 bg-gray-50">
                           <div className="space-y-2">
                             <p className="text-sm font-medium text-gray-700">
                               Detail Alokasi:

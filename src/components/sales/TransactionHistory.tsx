@@ -29,6 +29,7 @@ interface Transaction {
   total: number;
   cash: number;
   credit: number;
+  remainingCredit?: number; // Sisa hutang setelah pembayaran
   change: number;
   paymentStatus: string;
   paymentMethod?: string;
@@ -402,8 +403,18 @@ export default function TransactionHistory() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-500">
-                        {formatCurrency(transaction.credit)}
+                        {formatCurrency(
+                          transaction.remainingCredit !== undefined
+                            ? transaction.remainingCredit
+                            : transaction.credit
+                        )}
                       </div>
+                      {transaction.remainingCredit !== undefined &&
+                        transaction.remainingCredit < transaction.credit && (
+                          <div className="text-xs text-gray-400">
+                            dari {formatCurrency(transaction.credit)}
+                          </div>
+                        )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getPaymentStatusBadge(transaction.paymentStatus)}
@@ -430,13 +441,19 @@ export default function TransactionHistory() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
-                        {transaction.credit > 0 && (
+                        {(transaction.remainingCredit !== undefined
+                          ? transaction.remainingCredit > 0
+                          : transaction.credit > 0) && (
                           <button
                             onClick={() => {
-                              // Calculate remainingCredit before passing to PaymentForm
+                              // Use remainingCredit if available, otherwise use credit
+                              const remainingCredit =
+                                transaction.remainingCredit !== undefined
+                                  ? transaction.remainingCredit
+                                  : transaction.credit;
                               const transactionWithRemainingCredit = {
                                 ...transaction,
-                                remainingCredit: transaction.credit, // For now, use credit as remainingCredit (will be calculated properly in PaymentForm if allocations exist)
+                                remainingCredit: remainingCredit,
                               };
                               setPaymentTransaction(
                                 transactionWithRemainingCredit
@@ -728,7 +745,20 @@ export default function TransactionHistory() {
                 </div>
                 <div className="flex justify-between">
                   <span>Hutang:</span>
-                  <span>{formatCurrency(selectedTransaction.credit)}</span>
+                  <span>
+                    {formatCurrency(
+                      selectedTransaction.remainingCredit !== undefined
+                        ? selectedTransaction.remainingCredit
+                        : selectedTransaction.credit
+                    )}
+                    {selectedTransaction.remainingCredit !== undefined &&
+                      selectedTransaction.remainingCredit <
+                        selectedTransaction.credit && (
+                        <span className="text-gray-400 text-sm ml-2">
+                          (dari {formatCurrency(selectedTransaction.credit)})
+                        </span>
+                      )}
+                  </span>
                 </div>
                 {selectedTransaction.change > 0 && (
                   <div className="flex justify-between font-semibold text-lg">

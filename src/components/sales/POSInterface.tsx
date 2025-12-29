@@ -10,7 +10,9 @@ import { AutocompleteSelect } from "@/components/ui/autocomplete-select";
 import UnitSelector from "./UnitSelector";
 import { hasMultipleSellingUnits, getDefaultSellingUnit, calculateQuantityFromPrice, getEffectiveStock, convertToBaseUnit, convertFromBaseUnit, getEffectiveUnit } from "@/lib/product-units";
 import { validateNumberInput, formatNumberForInput } from "@/lib/utils";
-import { X, Pencil } from "lucide-react";
+import { X, Pencil, Plus } from "lucide-react";
+import CustomerForm from "@/components/customers/CustomerForm";
+import ProjectForm from "@/components/projects/ProjectForm";
 
 const STORAGE_KEY = "pos_sessions";
 const LAST_ACTIVE_KEY = "pos_last_active_session";
@@ -33,6 +35,8 @@ export default function POSInterface() {
   const [loading, setLoading] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [lastTransaction, setLastTransaction] = useState<any>(null);
+  const [showCustomerForm, setShowCustomerForm] = useState(false);
+  const [showProjectForm, setShowProjectForm] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [editingPriceProductId, setEditingPriceProductId] = useState<string | null>(null);
 
@@ -889,9 +893,20 @@ export default function POSInterface() {
 
                 <div className="border-t pt-4 space-y-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Pelanggan (Opsional)
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Pelanggan (Opsional)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowCustomerForm(true)}
+                        className="text-indigo-600 hover:text-indigo-800 text-sm flex items-center gap-1"
+                        title="Tambah Pelanggan Baru"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span>Tambah</span>
+                      </button>
+                    </div>
                     <AutocompleteSelect
                       options={customers.map((c) => ({ id: c.id, name: c.name }))}
                       value={getActiveCustomerId()}
@@ -912,9 +927,20 @@ export default function POSInterface() {
 
                   {getActiveCustomerId() && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Proyek
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Proyek
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setShowProjectForm(true)}
+                          className="text-indigo-600 hover:text-indigo-800 text-sm flex items-center gap-1"
+                          title="Tambah Proyek Baru"
+                        >
+                          <Plus className="h-4 w-4" />
+                          <span>Tambah</span>
+                        </button>
+                      </div>
                       <AutocompleteSelect
                         options={projects.map((p) => ({ id: p.id, name: p.name }))}
                         value={getActiveProjectId()}
@@ -1248,6 +1274,41 @@ export default function POSInterface() {
           onCancel={() => {
             setShowUnitSelector(false);
             setUnitSelectorProduct(null);
+          }}
+        />
+      )}
+
+      {/* Customer Form Modal */}
+      <CustomerForm
+        customer={null}
+        isOpen={showCustomerForm}
+        onClose={() => setShowCustomerForm(false)}
+        onSuccess={async () => {
+          // Refresh customers list
+          await fetchCustomers();
+          setShowCustomerForm(false);
+          // Optionally auto-select the newly created customer
+          // This would require getting the new customer ID from the API response
+        }}
+      />
+
+      {/* Project Form Modal */}
+      {getActiveCustomerId() && (
+        <ProjectForm
+          project={null}
+          customerId={getActiveCustomerId()!}
+          hasDefaultProject={projects.some((p) => p.isDefault && p.customerId === getActiveCustomerId())}
+          isOpen={showProjectForm}
+          onClose={() => setShowProjectForm(false)}
+          onSuccess={async () => {
+            // Refresh projects list
+            const activeCustomerId = getActiveCustomerId();
+            if (activeCustomerId) {
+              await fetchProjects(activeCustomerId);
+            }
+            setShowProjectForm(false);
+            // Optionally auto-select the newly created project
+            // This would require getting the new project ID from the API response
           }}
         />
       )}

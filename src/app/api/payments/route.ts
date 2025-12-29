@@ -218,12 +218,31 @@ export async function GET(request: NextRequest) {
 
     const where: any = {};
 
-    if (customerId) {
-      where.customerId = customerId;
+    if (customerId && customerId.trim() !== "") {
+      // Filter by customerId - this includes payments made for a customer (aggregate payments)
+      // and payments made for transactions that belong to this customer
+      where.OR = [
+        { customerId: customerId.trim() },
+        {
+          transaction: {
+            customerId: customerId.trim(),
+          },
+        },
+      ];
     }
 
-    if (transactionId) {
-      where.transactionId = transactionId;
+    if (transactionId && transactionId.trim() !== "") {
+      // If transactionId is also provided, we need to combine with customerId filter
+      if (where.OR) {
+        // If customerId filter exists, we need to combine both
+        where.AND = [
+          { OR: where.OR },
+          { transactionId: transactionId.trim() },
+        ];
+        delete where.OR;
+      } else {
+        where.transactionId = transactionId.trim();
+      }
     }
 
     if (startDate || endDate) {
@@ -261,6 +280,14 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             invoiceNo: true,
+            customerId: true,
+            customer: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+              },
+            },
           },
         },
         allocations: {
@@ -272,6 +299,14 @@ export async function GET(request: NextRequest) {
                 total: true,
                 credit: true,
                 paymentStatus: true,
+                customerId: true,
+                customer: {
+                  select: {
+                    id: true,
+                    name: true,
+                    type: true,
+                  },
+                },
               },
             },
           },

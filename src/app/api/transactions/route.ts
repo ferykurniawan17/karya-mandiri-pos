@@ -95,6 +95,12 @@ export async function GET(request: NextRequest) {
             sellingUnit: true,
           },
         },
+        allocations: {
+          select: {
+            id: true,
+            amount: true,
+          },
+        },
       },
       orderBy: {
         createdAt: "desc",
@@ -230,6 +236,19 @@ export async function GET(request: NextRequest) {
         };
       });
 
+      // Calculate remaining credit (credit - total payments)
+      const totalPaid = transaction.allocations
+        ? transaction.allocations.reduce(
+            (sum: number, alloc: any) =>
+              sum + toNumber(alloc.amount),
+            0
+          )
+        : 0;
+      const remainingCredit = Math.max(
+        0,
+        toNumber(transaction.credit) - totalPaid
+      );
+
       // Build response object explicitly to ensure customer and project are included
       const responseObj = {
         id: transaction.id,
@@ -237,6 +256,7 @@ export async function GET(request: NextRequest) {
         total: toNumber(transaction.total),
         cash: toNumber(transaction.cash),
         credit: toNumber(transaction.credit),
+        remainingCredit: remainingCredit, // Add remaining credit
         change: toNumber(transaction.change),
         paymentStatus: transaction.paymentStatus,
         paymentMethod: transaction.paymentMethod || null,
