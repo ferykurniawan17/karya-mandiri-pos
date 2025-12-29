@@ -206,20 +206,67 @@ export default function TransactionEditForm({
   useEffect(() => {
     const total = calculateTotal();
     const cashAmount = parseFloat(cash) || 0;
+    const creditAmount = parseFloat(credit) || 0;
+    
+    // If total is 0, don't adjust
+    if (total === 0) return;
     
     if (paymentType === "paid") {
+      // For paid: cash should equal total, credit = 0
       setCredit("0");
-      if (cashAmount < total) {
+      if (cashAmount !== total) {
         setCash(total.toString());
       }
     } else if (paymentType === "unpaid") {
+      // For unpaid: cash = 0, credit = total
       setCash("0");
-      setCredit(total.toString());
+      if (creditAmount !== total) {
+        setCredit(total.toString());
+      }
     } else if (paymentType === "partial") {
-      const creditAmount = total - cashAmount;
-      setCredit(creditAmount > 0 ? creditAmount.toString() : "0");
+      // For partial: adjust when total changes (e.g., item removed)
+      const currentTotal = cashAmount + creditAmount;
+      
+      if (currentTotal === 0) {
+        // If no payment set yet, default to half cash, half credit
+        const halfTotal = total / 2;
+        setCash(halfTotal.toString());
+        setCredit(halfTotal.toString());
+      } else if (Math.abs(currentTotal - total) > 0.01) {
+        // If total changed (e.g., item removed), adjust proportionally
+        // But preserve cash if it's less than new total
+        if (cashAmount <= total) {
+          // Keep cash as is, adjust credit
+          const newCredit = total - cashAmount;
+          setCredit(newCredit > 0 ? newCredit.toString() : "0");
+        } else {
+          // Cash exceeds total, reduce both proportionally
+          const ratio = total / currentTotal;
+          const newCash = cashAmount * ratio;
+          const newCredit = total - newCash;
+          setCash(newCash.toString());
+          setCredit(newCredit > 0 ? newCredit.toString() : "0");
+        }
+      }
     }
-  }, [paymentType, items, cash]);
+  }, [paymentType, items]);
+
+  // Handle manual cash change for partial payment
+  const handleCashChange = (value: string) => {
+    setCash(value);
+    if (paymentType === "partial") {
+      const total = calculateTotal();
+      const cashAmount = parseFloat(value) || 0;
+      if (cashAmount <= total) {
+        const newCredit = total - cashAmount;
+        setCredit(newCredit > 0 ? newCredit.toString() : "0");
+      } else {
+        // If cash exceeds total, cap it at total
+        setCash(total.toString());
+        setCredit("0");
+      }
+    }
+  };
 
   const handleSubmit = async () => {
     setError("");
@@ -440,7 +487,7 @@ export default function TransactionEditForm({
               <Label>Tunai</Label>
               <CurrencyInput
                 value={cash}
-                onChange={setCash}
+                onChange={handleCashChange}
                 className="mt-1"
                 disabled={paymentType === "unpaid"}
               />
@@ -449,7 +496,20 @@ export default function TransactionEditForm({
               <Label>Hutang</Label>
               <CurrencyInput
                 value={credit}
-                onChange={setCredit}
+                onChange={(value) => {
+                  setCredit(value);
+                  if (paymentType === "partial") {
+                    const total = calculateTotal();
+                    const creditAmount = parseFloat(value) || 0;
+                    if (creditAmount <= total) {
+                      const newCash = total - creditAmount;
+                      setCash(newCash > 0 ? newCash.toString() : "0");
+                    } else {
+                      setCredit(total.toString());
+                      setCash("0");
+                    }
+                  }
+                }}
                 className="mt-1"
                 disabled={paymentType === "paid"}
               />
