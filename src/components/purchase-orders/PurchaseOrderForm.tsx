@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { AutocompleteSelect } from "@/components/ui/autocomplete-select";
 import { validateNumberInput, formatNumberForInput } from "@/lib/utils";
-import ProductSelectionModal from "./ProductSelectionModal";
+import ProductSelectionModal from "@/components/shared/ProductSelectionModal";
 import {
   Dialog,
   DialogContent,
@@ -519,6 +519,8 @@ export default function PurchaseOrderForm({
           excludeProductIds={items
             .filter((item, idx) => idx !== selectingItemIndex && item.productId)
             .map((item) => item.productId)}
+          title="Pilih Produk"
+          description="Pilih produk dari daftar untuk ditambahkan ke Purchase Order"
         />
       </DialogContent>
     </Dialog>

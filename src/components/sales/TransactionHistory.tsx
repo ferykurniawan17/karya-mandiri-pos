@@ -22,6 +22,8 @@ import { Customer, Project } from "@/types";
 import { convertFromBaseUnit } from "@/lib/product-units";
 import PaymentForm from "@/components/payments/PaymentForm";
 import PaymentHistory from "@/components/payments/PaymentHistory";
+import { Edit } from "lucide-react";
+import TransactionEditForm from "./TransactionEditForm";
 
 interface Transaction {
   id: string;
@@ -64,6 +66,9 @@ export default function TransactionHistory() {
   const [paymentTransaction, setPaymentTransaction] = useState<
     Transaction | undefined
   >(undefined);
+  const [editingTransaction, setEditingTransaction] =
+    useState<Transaction | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   // Filters
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -471,6 +476,30 @@ export default function TransactionHistory() {
                         >
                           Detail
                         </button>
+                        <button
+                          onClick={async () => {
+                            // Fetch full transaction details for editing
+                            try {
+                              const response = await fetch(
+                                `/api/transactions/${transaction.id}`
+                              );
+                              const data = await response.json();
+                              if (response.ok && data.transaction) {
+                                setEditingTransaction(data.transaction);
+                                setShowEditModal(true);
+                              } else {
+                                alert("Gagal memuat detail transaksi");
+                              }
+                            } catch (err) {
+                              console.error("Error fetching transaction:", err);
+                              alert("Terjadi kesalahan");
+                            }
+                          }}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          <Edit className="h-4 w-4 inline mr-1" />
+                          Edit
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -810,6 +839,23 @@ export default function TransactionHistory() {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Edit Transaction Modal */}
+      {editingTransaction && (
+        <TransactionEditForm
+          transaction={editingTransaction}
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingTransaction(null);
+          }}
+          onSuccess={() => {
+            setShowEditModal(false);
+            setEditingTransaction(null);
+            fetchTransactions();
+          }}
+        />
+      )}
     </div>
   );
 }
