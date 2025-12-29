@@ -23,7 +23,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Customer } from "@/types";
 import CustomerForm from "./CustomerForm";
-import { Edit, Trash2, FolderOpen, User, Building2 } from "lucide-react";
+import PaymentHistory from "@/components/payments/PaymentHistory";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Edit, Trash2, FolderOpen, User, Building2, CreditCard } from "lucide-react";
 
 interface CustomerWithCounts extends Customer {
   _count?: {
@@ -42,6 +49,8 @@ export default function CustomerManagement() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [customerToDelete, setCustomerToDelete] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showPaymentHistory, setShowPaymentHistory] = useState(false);
+  const [selectedCustomerForPayment, setSelectedCustomerForPayment] = useState<Customer | null>(null);
 
   useEffect(() => {
     fetchCustomers();
@@ -213,6 +222,17 @@ export default function CustomerManagement() {
                             variant="ghost"
                             size="icon"
                             onClick={() => {
+                              setSelectedCustomerForPayment(customer);
+                              setShowPaymentHistory(true);
+                            }}
+                            title="Riwayat Pembayaran"
+                          >
+                            <CreditCard className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
                               router.push(`/customers/${customer.id}/projects`);
                             }}
                             title="Kelola Proyek"
@@ -285,6 +305,19 @@ export default function CustomerManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={showPaymentHistory} onOpenChange={setShowPaymentHistory}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Riwayat Pembayaran - {selectedCustomerForPayment?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedCustomerForPayment && (
+            <PaymentHistory customerId={selectedCustomerForPayment.id} />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

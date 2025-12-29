@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import PaymentForm from "@/components/payments/PaymentForm";
 import PaymentHistory from "@/components/payments/PaymentHistory";
 import {
@@ -13,8 +14,11 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 
 export default function PaymentsPageContent() {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   const handlePaymentSuccess = (payment: any) => {
     alert("Pembayaran berhasil dicatat");
+    setIsModalOpen(false);
     window.location.reload();
   };
 
@@ -24,30 +28,27 @@ export default function PaymentsPageContent() {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold text-gray-900">
-              Catat Pembayaran
+              Riwayat Pembayaran
             </h2>
-            <Dialog>
+            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="h-4 w-4 mr-2" />
-                  Pembayaran Baru
+                  Catat Pembayaran
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Catat Pembayaran Baru</DialogTitle>
+                  <DialogTitle>Catat Pembayaran</DialogTitle>
                 </DialogHeader>
-                <PaymentForm mode="customer" onSuccess={handlePaymentSuccess} />
+                <PaymentForm
+                  mode="customer"
+                  onSuccess={handlePaymentSuccess}
+                  onCancel={() => setIsModalOpen(false)}
+                />
               </DialogContent>
             </Dialog>
           </div>
-          <PaymentForm mode="customer" onSuccess={handlePaymentSuccess} />
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            Riwayat Pembayaran
-          </h2>
           <PaymentHistory />
         </div>
       </div>

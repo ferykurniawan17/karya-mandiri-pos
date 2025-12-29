@@ -25,6 +25,7 @@ export default function PaymentHistory({
   const [transactionId, setTransactionId] = useState<string | undefined>(
     initialTransactionId
   );
+  const [invoiceNo, setInvoiceNo] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [customers, setCustomers] = useState<
@@ -40,7 +41,7 @@ export default function PaymentHistory({
 
   useEffect(() => {
     fetchPayments();
-  }, [customerId, transactionId, startDate, endDate]);
+  }, [customerId, transactionId, invoiceNo, startDate, endDate]);
 
   const fetchCustomers = async () => {
     try {
@@ -62,7 +63,10 @@ export default function PaymentHistory({
         params.append("customerId", customerId);
       }
       if (transactionId && transactionId.trim() !== "") {
-        params.append("transactionId", transactionId);
+        params.append("transactionId", transactionId.trim());
+      }
+      if (invoiceNo && invoiceNo.trim() !== "") {
+        params.append("invoiceNo", invoiceNo.trim());
       }
       if (startDate) {
         params.append("startDate", startDate);
@@ -147,6 +151,15 @@ export default function PaymentHistory({
               />
             </div>
           )}
+          <div>
+            <Label>Invoice No</Label>
+            <Input
+              type="text"
+              value={invoiceNo}
+              onChange={(e) => setInvoiceNo(e.target.value)}
+              placeholder="Cari invoice..."
+            />
+          </div>
           <div>
             <Label>Tanggal Mulai</Label>
             <Input

@@ -211,6 +211,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const customerId = searchParams.get("customerId");
     const transactionId = searchParams.get("transactionId");
+    const invoiceNo = searchParams.get("invoiceNo");
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
     const limit = parseInt(searchParams.get("limit") || "50");
@@ -242,6 +243,24 @@ export async function GET(request: NextRequest) {
         delete where.OR;
       } else {
         where.transactionId = transactionId.trim();
+      }
+    }
+
+    if (invoiceNo && invoiceNo.trim() !== "") {
+      // Filter by invoice number (case-insensitive search)
+      const invoiceFilter = {
+        transaction: {
+          invoiceNo: { mode: 'insensitive', contains: invoiceNo.trim() },
+        },
+      };
+      
+      if (where.AND) {
+        where.AND.push(invoiceFilter);
+      } else if (where.OR) {
+        where.AND = [{ OR: where.OR }, invoiceFilter];
+        delete where.OR;
+      } else {
+        where.AND = [invoiceFilter];
       }
     }
 
