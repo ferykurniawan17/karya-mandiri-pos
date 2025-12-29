@@ -75,3 +75,41 @@ export function formatNumberForInput(value: number | string | null | undefined):
   return value.toString()
 }
 
+/**
+ * Format number as Rupiah currency string
+ * @param value - Number value
+ * @returns Formatted string like "Rp 1.000.000"
+ */
+export function formatRupiah(value: number | string | null | undefined): string {
+  if (value === null || value === undefined || value === "") {
+    return ""
+  }
+  const numValue = typeof value === "string" ? parseFloat(value.replace(/[^\d,.-]/g, "").replace(",", ".")) : value
+  if (isNaN(numValue)) {
+    return ""
+  }
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(numValue)
+}
+
+/**
+ * Parse Rupiah formatted string to number
+ * @param value - Rupiah formatted string like "Rp 1.000.000"
+ * @returns Number value
+ */
+export function parseRupiah(value: string): number {
+  if (!value) return 0
+  // Remove currency symbols and spaces, replace dots with empty, comma with dot
+  const cleaned = value
+    .replace(/Rp\s?/gi, "")
+    .replace(/\./g, "")
+    .replace(/,/g, ".")
+    .trim()
+  const numValue = parseFloat(cleaned)
+  return isNaN(numValue) ? 0 : numValue
+}
+

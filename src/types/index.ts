@@ -101,6 +101,8 @@ export interface Transaction {
   userId: string
   user: User
   items: TransactionItem[]
+  payments?: Payment[]
+  allocations?: PaymentAllocation[]
   createdAt: Date
   updatedAt: Date
 }
@@ -176,6 +178,33 @@ export interface PurchaseOrder {
   user: User
   items: PurchaseOrderItem[]
   receivedAt?: Date | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface PaymentAllocation {
+  id: string
+  paymentId: string
+  payment?: Payment
+  transactionId: string
+  transaction?: Transaction
+  amount: number
+  createdAt: Date
+}
+
+export interface Payment {
+  id: string
+  amount: number
+  paymentDate: Date
+  paymentMethod: string  // "cash", "transfer", "bank_transfer", etc
+  note?: string | null
+  customerId?: string | null
+  transactionId?: string | null
+  userId: string
+  user: User
+  customer?: Customer | null
+  transaction?: Transaction | null
+  allocations?: PaymentAllocation[]
   createdAt: Date
   updatedAt: Date
 }

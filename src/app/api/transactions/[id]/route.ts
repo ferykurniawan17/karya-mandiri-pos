@@ -17,6 +17,21 @@ export async function GET(
             username: true,
           },
         },
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            phone: true,
+            email: true,
+          },
+        },
+        project: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         items: {
           include: {
             product: {
@@ -24,6 +39,39 @@ export async function GET(
                 category: true,
               },
             },
+            sellingUnit: true,
+          },
+        },
+        payments: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                username: true,
+              },
+            },
+          },
+          orderBy: {
+            paymentDate: "desc",
+          },
+        },
+        allocations: {
+          include: {
+            payment: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    username: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
           },
         },
       },
@@ -36,7 +84,34 @@ export async function GET(
       )
     }
 
-    return NextResponse.json({ transaction })
+    // Serialize Decimal fields
+    const serializedTransaction = {
+      ...transaction,
+      total: transaction.total.toNumber(),
+      cash: transaction.cash.toNumber(),
+      credit: transaction.credit.toNumber(),
+      change: transaction.change.toNumber(),
+      items: transaction.items.map((item) => ({
+        ...item,
+        quantity: item.quantity.toNumber(),
+        price: item.price.toNumber(),
+        subtotal: item.subtotal.toNumber(),
+      })),
+      payments: transaction.payments.map((payment) => ({
+        ...payment,
+        amount: payment.amount.toNumber(),
+      })),
+      allocations: transaction.allocations.map((alloc) => ({
+        ...alloc,
+        amount: alloc.amount.toNumber(),
+        payment: {
+          ...alloc.payment,
+          amount: alloc.payment.amount.toNumber(),
+        },
+      })),
+    }
+
+    return NextResponse.json({ transaction: serializedTransaction })
   } catch (error) {
     console.error('Get transaction error:', error)
     return NextResponse.json(

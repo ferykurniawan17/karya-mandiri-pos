@@ -12,8 +12,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AutocompleteSelect } from "@/components/ui/autocomplete-select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Customer, Project } from "@/types";
 import { convertFromBaseUnit } from "@/lib/product-units";
+import PaymentForm from "@/components/payments/PaymentForm";
+import PaymentHistory from "@/components/payments/PaymentHistory";
 
 interface Transaction {
   id: string;
@@ -51,6 +59,10 @@ export default function TransactionHistory() {
   const [loading, setLoading] = useState(true);
   const [selectedTransaction, setSelectedTransaction] =
     useState<Transaction | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentTransaction, setPaymentTransaction] = useState<
+    Transaction | undefined
+  >(undefined);
 
   // Filters
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -417,12 +429,32 @@ export default function TransactionHistory() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => setSelectedTransaction(transaction)}
-                        className="text-indigo-600 hover:text-indigo-900"
-                      >
-                        Detail
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        {transaction.credit > 0 && (
+                          <button
+                            onClick={() => {
+                              // Calculate remainingCredit before passing to PaymentForm
+                              const transactionWithRemainingCredit = {
+                                ...transaction,
+                                remainingCredit: transaction.credit, // For now, use credit as remainingCredit (will be calculated properly in PaymentForm if allocations exist)
+                              };
+                              setPaymentTransaction(
+                                transactionWithRemainingCredit
+                              );
+                              setShowPaymentModal(true);
+                            }}
+                            className="text-red-600 hover:text-red-900 font-medium"
+                          >
+                            Bayar Hutang
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setSelectedTransaction(transaction)}
+                          className="text-indigo-600 hover:text-indigo-900"
+                        >
+                          Detail
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -725,6 +757,29 @@ export default function TransactionHistory() {
           </div>
         </>
       )}
+
+      {/* Payment Modal */}
+      <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Bayar Hutang</DialogTitle>
+          </DialogHeader>
+          <PaymentForm
+            mode="transaction"
+            transaction={paymentTransaction}
+            onSuccess={(payment) => {
+              setShowPaymentModal(false);
+              setPaymentTransaction(undefined);
+              fetchTransactions();
+              alert("Pembayaran berhasil dicatat");
+            }}
+            onCancel={() => {
+              setShowPaymentModal(false);
+              setPaymentTransaction(undefined);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

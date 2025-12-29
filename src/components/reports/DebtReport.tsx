@@ -11,6 +11,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AutocompleteSelect } from "@/components/ui/autocomplete-select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import ExportButtons from "./ExportButtons";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
 import {
@@ -21,6 +28,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import Link from "next/link";
+import PaymentForm from "@/components/payments/PaymentForm";
 
 interface DebtReportData {
   summary: {
@@ -97,6 +105,10 @@ export default function DebtReport() {
   const [customers, setCustomers] = useState<
     Array<{ id: string; name: string }>
   >([]);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentCustomerId, setPaymentCustomerId] = useState<
+    string | undefined
+  >(undefined);
 
   useEffect(() => {
     fetchCustomers();
@@ -543,6 +555,9 @@ export default function DebtReport() {
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Jumlah Transaksi
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Aksi
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -582,6 +597,19 @@ export default function DebtReport() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
                         {customer.transactionCount}
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setPaymentCustomerId(customer.customerId);
+                            setShowPaymentModal(true);
+                          }}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Bayar Hutang
+                        </Button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -592,6 +620,29 @@ export default function DebtReport() {
       ) : (
         <div className="text-center py-8 text-gray-500">Tidak ada data</div>
       )}
+
+      {/* Payment Modal */}
+      <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Bayar Hutang</DialogTitle>
+          </DialogHeader>
+          <PaymentForm
+            mode="customer"
+            customerId={paymentCustomerId}
+            onSuccess={(payment) => {
+              setShowPaymentModal(false);
+              setPaymentCustomerId(undefined);
+              fetchReport();
+              alert("Pembayaran berhasil dicatat");
+            }}
+            onCancel={() => {
+              setShowPaymentModal(false);
+              setPaymentCustomerId(undefined);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

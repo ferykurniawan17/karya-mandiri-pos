@@ -19,6 +19,7 @@ model User {
   createdAt     DateTime        @default(now())
   transactions  Transaction[]
   purchaseOrders PurchaseOrder[]
+  payments      Payment[]
 }
 
 model Category {
@@ -54,6 +55,7 @@ model Customer {
   notes       String?
   projects    Project[]
   transactions Transaction[]
+  payments    Payment[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 }
@@ -119,6 +121,8 @@ model Transaction {
   userId        String
   user          User              @relation(fields: [userId], references: [id])
   items         TransactionItem[]
+  payments      Payment[]
+  allocations   PaymentAllocation[]
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @default(now()) @updatedAt
 }
@@ -197,5 +201,39 @@ model ProductSellingUnit {
   updatedAt         DateTime @updatedAt
   
   @@index([productId])
+}
+
+model Payment {
+  id            String              @id @default(uuid())
+  amount        Decimal             // Jumlah pembayaran
+  paymentDate   DateTime            @default(now())
+  paymentMethod String              // "cash", "transfer", "bank_transfer", etc
+  note          String?
+  customerId    String?             // Untuk aggregate payment
+  transactionId String?             // Untuk per-transaction payment (nullable)
+  userId        String              // User yang mencatat pembayaran
+  user          User                @relation(fields: [userId], references: [id])
+  customer      Customer?           @relation(fields: [customerId], references: [id])
+  transaction   Transaction?        @relation(fields: [transactionId], references: [id])
+  allocations   PaymentAllocation[] // Alokasi pembayaran ke transaksi
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  
+  @@index([customerId])
+  @@index([transactionId])
+  @@index([paymentDate])
+}
+
+model PaymentAllocation {
+  id            String    @id @default(uuid())
+  paymentId     String
+  payment       Payment   @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  amount        Decimal   // Jumlah yang dialokasikan ke transaksi ini
+  createdAt     DateTime  @default(now())
+  
+  @@unique([paymentId, transactionId])
+  @@index([transactionId])
 }
 

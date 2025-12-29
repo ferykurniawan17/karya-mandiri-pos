@@ -13,6 +13,7 @@ import {
   Truck,
   FileText,
   BarChart3,
+  CreditCard,
 } from "lucide-react";
 import SyncStatus from "@/components/sync/SyncStatus";
 
@@ -45,6 +46,13 @@ export default function Sidebar({ isCollapsed, userRole }: SidebarProps) {
       label: "Transaksi",
       description: "Riwayat transaksi",
       color: "text-orange-600",
+    },
+    {
+      href: "/payments",
+      icon: CreditCard,
+      label: "Pembayaran Hutang",
+      description: "Kelola pembayaran hutang",
+      color: "text-red-600",
     },
     {
       href: "/tags",
