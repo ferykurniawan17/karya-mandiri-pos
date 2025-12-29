@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
 import { Prisma } from '@prisma/client'
+import { calculatePOPaymentSummary } from '@/lib/po-payment-service'
 
 export async function GET(
   request: NextRequest,
@@ -37,6 +38,36 @@ export async function GET(
             },
           },
         },
+        paymentSchedules: {
+          orderBy: {
+            displayOrder: 'asc',
+          },
+        },
+        payments: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                username: true,
+              },
+            },
+            allocations: {
+              include: {
+                schedule: {
+                  select: {
+                    id: true,
+                    dueDate: true,
+                    amount: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: {
+            paymentDate: 'desc',
+          },
+        },
       },
     })
 
@@ -47,7 +78,45 @@ export async function GET(
       )
     }
 
-    return NextResponse.json({ purchaseOrder })
+    // Calculate remaining debt
+    let remainingDebt = 0
+    try {
+      const summary = await calculatePOPaymentSummary(params.id)
+      remainingDebt = summary.remainingDebt.toNumber()
+    } catch (err) {
+      console.error('Error calculating payment summary:', err)
+      // If error, calculate manually
+      const totalPaid = purchaseOrder.payments.reduce(
+        (sum, payment) => sum + payment.amount.toNumber(),
+        0
+      )
+      remainingDebt = Math.max(0, purchaseOrder.total.toNumber() - totalPaid)
+    }
+
+    // Serialize Decimal fields
+    const serializedPurchaseOrder = {
+      ...purchaseOrder,
+      total: purchaseOrder.total.toNumber(),
+      paymentSchedules: purchaseOrder.paymentSchedules.map((schedule) => ({
+        ...schedule,
+        amount: schedule.amount.toNumber(),
+      })),
+      payments: purchaseOrder.payments.map((payment) => ({
+        ...payment,
+        amount: payment.amount.toNumber(),
+        allocations: payment.allocations.map((alloc) => ({
+          ...alloc,
+          amount: alloc.amount.toNumber(),
+          schedule: {
+            ...alloc.schedule,
+            amount: alloc.schedule.amount.toNumber(),
+          },
+        })),
+      })),
+      remainingDebt,
+    }
+
+    return NextResponse.json({ purchaseOrder: serializedPurchaseOrder })
   } catch (error) {
     console.error('Get purchase order error:', error)
     return NextResponse.json(

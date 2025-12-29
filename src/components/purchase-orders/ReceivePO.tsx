@@ -15,6 +15,13 @@ import {
 } from "@/components/ui/dialog";
 import { PurchaseOrder } from "@/types";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface ReceivePOProps {
   purchaseOrder: PurchaseOrder | null;
@@ -38,6 +45,7 @@ export default function ReceivePO({
   onSuccess,
 }: ReceivePOProps) {
   const [items, setItems] = useState<ReceiveItem[]>([]);
+  const [paymentType, setPaymentType] = useState<"paid" | "installment">("paid");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -61,6 +69,8 @@ export default function ReceivePO({
           };
         })
       );
+      // Set payment type from PO if available, otherwise default to "paid"
+      setPaymentType((purchaseOrder as any).paymentType || "paid");
     }
     setError("");
   }, [purchaseOrder, isOpen]);
@@ -127,6 +137,7 @@ export default function ReceivePO({
                 purchasePrice: parseFloat(item.purchasePrice),
               };
             }),
+            paymentType: paymentType,
           }),
         }
       );
@@ -166,6 +177,30 @@ export default function ReceivePO({
 
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="paymentType">Status Pembayaran *</Label>
+              <Select
+                value={paymentType}
+                onValueChange={(value: "paid" | "installment") =>
+                  setPaymentType(value)
+                }
+                className="mt-1"
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="paid">Lunas</SelectItem>
+                  <SelectItem value="installment">Bayar Bertahap / Cicilan</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500 mt-1">
+                {paymentType === "paid"
+                  ? "Pembayaran dilakukan sekaligus saat terima barang"
+                  : "Pembayaran dapat dilakukan secara bertahap sesuai jadwal"}
+              </p>
+            </div>
+
             <div className="space-y-2">
               {items.map((item) => (
                 <div

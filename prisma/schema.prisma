@@ -20,6 +20,7 @@ model User {
   transactions  Transaction[]
   purchaseOrders PurchaseOrder[]
   payments      Payment[]
+  poPayments    POPayment[]
 }
 
 model Category {
@@ -159,11 +160,14 @@ model PurchaseOrder {
   providerId    String?
   provider      Provider?           @relation(fields: [providerId], references: [id])
   status        String              @default("draft")  // "draft", "approved", "received", "cancelled"
+  paymentType   String              @default("paid")  // "paid" (lunas) or "installment" (cicilan)
   total         Decimal             @default(0)
   note          String?
   userId        String
   user          User                @relation(fields: [userId], references: [id])
   items         PurchaseOrderItem[]
+  paymentSchedules POPaymentSchedule[]
+  payments      POPayment[]
   receivedAt    DateTime?
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
@@ -235,5 +239,57 @@ model PaymentAllocation {
   
   @@unique([paymentId, transactionId])
   @@index([transactionId])
+}
+
+model POPaymentSchedule {
+  id            String    @id @default(uuid())
+  purchaseOrderId String
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  dueDate       DateTime  // Tanggal jatuh tempo
+  amount        Decimal   // Jumlah yang harus dibayar
+  note          String?   // Catatan untuk jadwal ini
+  displayOrder  Int       @default(0) // Urutan tampilan
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  payments      POPayment[] // Pembayaran yang sudah dilakukan untuk jadwal ini
+  allocations   POPaymentAllocation[] // Alokasi pembayaran ke schedule ini
+  
+  @@index([purchaseOrderId])
+  @@index([dueDate])
+}
+
+model POPayment {
+  id                String            @id @default(uuid())
+  purchaseOrderId   String
+  purchaseOrder     PurchaseOrder     @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  scheduleId        String?           // Optional: jika pembayaran sesuai jadwal
+  schedule          POPaymentSchedule? @relation(fields: [scheduleId], references: [id])
+  amount            Decimal           // Jumlah pembayaran
+  paymentDate       DateTime          @default(now())
+  paymentMethod     String            // "cash", "transfer", "bank_transfer", etc
+  note              String?
+  userId            String
+  user              User              @relation(fields: [userId], references: [id])
+  allocations       POPaymentAllocation[] // Alokasi ke schedule jika amount berbeda
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  @@index([purchaseOrderId])
+  @@index([paymentDate])
+  @@index([scheduleId])
+}
+
+model POPaymentAllocation {
+  id            String            @id @default(uuid())
+  paymentId     String
+  payment       POPayment         @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  scheduleId    String
+  schedule      POPaymentSchedule @relation(fields: [scheduleId], references: [id])
+  amount        Decimal           // Jumlah yang dialokasikan ke schedule ini
+  createdAt     DateTime          @default(now())
+  
+  @@unique([paymentId, scheduleId])
+  @@index([scheduleId])
 }
 

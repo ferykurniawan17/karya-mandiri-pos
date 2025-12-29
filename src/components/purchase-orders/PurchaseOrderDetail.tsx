@@ -13,7 +13,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PurchaseOrder } from "@/types";
-import { Check, X, Package, Edit } from "lucide-react";
+import { Check, X, Package, Edit, CreditCard } from "lucide-react";
+import POPaymentSummary from "./POPaymentSummary";
+import POPaymentForm from "./POPaymentForm";
+import POPaymentHistory from "./POPaymentHistory";
 
 interface PurchaseOrderDetailProps {
   purchaseOrder: PurchaseOrder | null;
@@ -36,6 +39,9 @@ export default function PurchaseOrderDetail({
   const [itemPrices, setItemPrices] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState<"detail" | "payment">("detail");
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [paymentRefreshKey, setPaymentRefreshKey] = useState(0);
 
   useEffect(() => {
     if (purchaseOrder && isOpen) {
@@ -53,6 +59,7 @@ export default function PurchaseOrderDetail({
       setItemPrices(prices);
       setEditingPrices(false);
       setError("");
+      setActiveTab("detail");
     }
   }, [purchaseOrder, isOpen]);
 
@@ -140,9 +147,11 @@ export default function PurchaseOrderDetail({
     );
   };
 
+  const poTotal = Number(purchaseOrder.total) || 0;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Detail Purchase Order</DialogTitle>
           <DialogDescription>
@@ -150,110 +159,118 @@ export default function PurchaseOrderDetail({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-sm text-gray-500">Status</Label>
-              <div className="mt-1">{getStatusBadge(purchaseOrder.status)}</div>
-            </div>
-            <div>
-              <Label className="text-sm text-gray-500">Provider</Label>
-              <div className="mt-1">{purchaseOrder.provider?.name || "-"}</div>
-            </div>
-            <div>
-              <Label className="text-sm text-gray-500">Dibuat Oleh</Label>
-              <div className="mt-1">{purchaseOrder.user.name}</div>
-            </div>
-            <div>
-              <Label className="text-sm text-gray-500">Tanggal Dibuat</Label>
-              <div className="mt-1">
-                {new Date(purchaseOrder.createdAt).toLocaleString("id-ID")}
-              </div>
-            </div>
-            {purchaseOrder.receivedAt && (
+        {/* Tabs */}
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab("detail")}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === "detail"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              Detail
+            </button>
+            <button
+              onClick={() => setActiveTab("payment")}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === "payment"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              Pembayaran
+            </button>
+          </nav>
+        </div>
+
+        {activeTab === "detail" && (
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label className="text-sm text-gray-500">
-                  Tanggal Diterima
-                </Label>
+                <Label className="text-sm text-gray-500">Status</Label>
                 <div className="mt-1">
-                  {new Date(purchaseOrder.receivedAt).toLocaleString("id-ID")}
+                  {getStatusBadge(purchaseOrder.status)}
                 </div>
               </div>
-            )}
-            {purchaseOrder.note && (
-              <div className="col-span-2">
-                <Label className="text-sm text-gray-500">Catatan</Label>
-                <div className="mt-1">{purchaseOrder.note}</div>
+              <div>
+                <Label className="text-sm text-gray-500">Provider</Label>
+                <div className="mt-1">
+                  {purchaseOrder.provider?.name || "-"}
+                </div>
               </div>
-            )}
-          </div>
-
-          <div>
-            <div className="flex justify-between items-center mb-2">
-              <Label className="text-sm font-medium">Items</Label>
+              <div>
+                <Label className="text-sm text-gray-500">Dibuat Oleh</Label>
+                <div className="mt-1">{purchaseOrder.user.name}</div>
+              </div>
+              <div>
+                <Label className="text-sm text-gray-500">Tanggal Dibuat</Label>
+                <div className="mt-1">
+                  {new Date(purchaseOrder.createdAt).toLocaleString("id-ID")}
+                </div>
+              </div>
+              {purchaseOrder.receivedAt && (
+                <div>
+                  <Label className="text-sm text-gray-500">
+                    Tanggal Diterima
+                  </Label>
+                  <div className="mt-1">
+                    {new Date(purchaseOrder.receivedAt).toLocaleString("id-ID")}
+                  </div>
+                </div>
+              )}
+              {purchaseOrder.note && (
+                <div className="col-span-2">
+                  <Label className="text-sm text-gray-500">Catatan</Label>
+                  <div className="mt-1">{purchaseOrder.note}</div>
+                </div>
+              )}
             </div>
-            <div className="mt-2 space-y-2">
-              {purchaseOrder.items.map((item) => (
-                <div
-                  key={item.id}
-                  className={`grid gap-4 items-center p-3 border rounded ${
-                    purchaseOrder.status === "received"
-                      ? "grid-cols-6"
-                      : "grid-cols-5"
-                  }`}
-                >
-                  <div className="col-span-2">
-                    <div className="font-medium">{item.product.name}</div>
-                    <div className="text-xs text-gray-500">
-                      {item.product.category.name}
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-sm text-gray-500">Quantity</div>
-                    <div className="font-medium">{item.quantity}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-500 mb-1">Harga Beli</div>
-                    {editingPrices && canEditPrices ? (
-                      <CurrencyInput
-                        value={itemPrices[item.id] || "0"}
-                        onChange={(value) =>
-                          setItemPrices({
-                            ...itemPrices,
-                            [item.id]: value,
-                          })
-                        }
-                        className="w-full"
-                      />
-                    ) : (
-                      <div className="font-medium text-center">
-                        {(() => {
-                          // If purchasePrice is 0 or not set, use product's purchasePrice as default
-                          const poPrice = Number(item.purchasePrice) || 0;
-                          const productPrice = item.product?.purchasePrice
-                            ? Number(item.product.purchasePrice)
-                            : 0;
-                          const finalPrice =
-                            poPrice > 0
-                              ? poPrice
-                              : productPrice > 0
-                              ? productPrice
-                              : 0;
-                          return `Rp ${finalPrice.toLocaleString("id-ID")}`;
-                        })()}
+
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <Label className="text-sm font-medium">Items</Label>
+              </div>
+              <div className="mt-2 space-y-2">
+                {purchaseOrder.items.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`grid gap-4 items-center p-3 border rounded ${
+                      purchaseOrder.status === "received"
+                        ? "grid-cols-6"
+                        : "grid-cols-5"
+                    }`}
+                  >
+                    <div className="col-span-2">
+                      <div className="font-medium">{item.product.name}</div>
+                      <div className="text-xs text-gray-500">
+                        {item.product.category.name}
                       </div>
-                    )}
-                  </div>
-                  <div className="text-center">
-                    <div className="text-sm text-gray-500">Subtotal</div>
-                    <div className="font-medium">
-                      {editingPrices && canEditPrices
-                        ? `Rp ${(
-                            (parseFloat(itemPrices[item.id] || "0") || 0) *
-                            item.quantity
-                          ).toLocaleString("id-ID")}`
-                        : (() => {
-                            // If purchasePrice is 0, calculate from product price
+                    </div>
+                    <div className="text-center">
+                      <div className="text-sm text-gray-500">Quantity</div>
+                      <div className="font-medium">{item.quantity}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500 mb-1">
+                        Harga Beli
+                      </div>
+                      {editingPrices && canEditPrices ? (
+                        <CurrencyInput
+                          value={itemPrices[item.id] || "0"}
+                          onChange={(value) =>
+                            setItemPrices({
+                              ...itemPrices,
+                              [item.id]: value,
+                            })
+                          }
+                          className="w-full"
+                        />
+                      ) : (
+                        <div className="font-medium text-center">
+                          {(() => {
+                            // If purchasePrice is 0 or not set, use product's purchasePrice as default
                             const poPrice = Number(item.purchasePrice) || 0;
                             const productPrice = item.product?.purchasePrice
                               ? Number(item.product.purchasePrice)
@@ -264,67 +281,166 @@ export default function PurchaseOrderDetail({
                                 : productPrice > 0
                                 ? productPrice
                                 : 0;
-                            const subtotal = item.quantity * finalPrice;
-                            return `Rp ${subtotal.toLocaleString("id-ID")}`;
+                            return `Rp ${finalPrice.toLocaleString("id-ID")}`;
                           })()}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  {purchaseOrder.status === "received" && (
                     <div className="text-center">
-                      <div className="text-sm text-gray-500">Diterima</div>
-                      <div className="font-medium">{item.receivedQuantity}</div>
+                      <div className="text-sm text-gray-500">Subtotal</div>
+                      <div className="font-medium">
+                        {editingPrices && canEditPrices
+                          ? `Rp ${(
+                              (parseFloat(itemPrices[item.id] || "0") || 0) *
+                              item.quantity
+                            ).toLocaleString("id-ID")}`
+                          : (() => {
+                              // If purchasePrice is 0, calculate from product price
+                              const poPrice = Number(item.purchasePrice) || 0;
+                              const productPrice = item.product?.purchasePrice
+                                ? Number(item.product.purchasePrice)
+                                : 0;
+                              const finalPrice =
+                                poPrice > 0
+                                  ? poPrice
+                                  : productPrice > 0
+                                  ? productPrice
+                                  : 0;
+                              const subtotal = item.quantity * finalPrice;
+                              return `Rp ${subtotal.toLocaleString("id-ID")}`;
+                            })()}
+                      </div>
                     </div>
-                  )}
+                    {purchaseOrder.status === "received" && (
+                      <div className="text-center">
+                        <div className="text-sm text-gray-500">Diterima</div>
+                        <div className="font-medium">
+                          {item.receivedQuantity}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {editingPrices && canEditPrices && (
+                <div className="mt-4 flex justify-end">
+                  <Button
+                    type="button"
+                    onClick={handleSavePrices}
+                    disabled={loading}
+                  >
+                    {loading ? "Menyimpan..." : "Simpan Harga Beli"}
+                  </Button>
                 </div>
-              ))}
+              )}
+              {error && (
+                <div className="mt-2 text-red-500 text-sm">{error}</div>
+              )}
             </div>
-            {editingPrices && canEditPrices && (
-              <div className="mt-4 flex justify-end">
-                <Button
-                  type="button"
-                  onClick={handleSavePrices}
-                  disabled={loading}
-                >
-                  {loading ? "Menyimpan..." : "Simpan Harga Beli"}
-                </Button>
-              </div>
-            )}
-            {error && <div className="mt-2 text-red-500 text-sm">{error}</div>}
-          </div>
 
-          <div className="flex justify-end pt-4 border-t">
-            <div className="text-right">
-              <div className="text-sm text-gray-500">Total</div>
-              <div className="text-2xl font-bold">
-                {(() => {
-                  // Calculate total from items, using product price if PO price is 0
-                  const calculatedTotal = purchaseOrder.items.reduce(
-                    (sum, item) => {
-                      const poPrice = Number(item.purchasePrice) || 0;
-                      const productPrice = item.product?.purchasePrice
-                        ? Number(item.product.purchasePrice)
-                        : 0;
-                      const finalPrice =
-                        poPrice > 0
-                          ? poPrice
-                          : productPrice > 0
-                          ? productPrice
+            <div className="flex justify-end pt-4 border-t">
+              <div className="text-right">
+                <div className="text-sm text-gray-500">Total</div>
+                <div className="text-2xl font-bold">
+                  {(() => {
+                    // Calculate total from items, using product price if PO price is 0
+                    const calculatedTotal = purchaseOrder.items.reduce(
+                      (sum, item) => {
+                        const poPrice = Number(item.purchasePrice) || 0;
+                        const productPrice = item.product?.purchasePrice
+                          ? Number(item.product.purchasePrice)
                           : 0;
-                      return sum + item.quantity * finalPrice;
-                    },
-                    0
-                  );
+                        const finalPrice =
+                          poPrice > 0
+                            ? poPrice
+                            : productPrice > 0
+                            ? productPrice
+                            : 0;
+                        return sum + item.quantity * finalPrice;
+                      },
+                      0
+                    );
 
-                  // Use calculated total if PO total is 0, otherwise use PO total
-                  const poTotal = Number(purchaseOrder.total) || 0;
-                  const finalTotal = poTotal > 0 ? poTotal : calculatedTotal;
+                    // Use calculated total if PO total is 0, otherwise use PO total
+                    const poTotal = Number(purchaseOrder.total) || 0;
+                    const finalTotal = poTotal > 0 ? poTotal : calculatedTotal;
 
-                  return `Rp ${finalTotal.toLocaleString("id-ID")}`;
-                })()}
+                    return `Rp ${finalTotal.toLocaleString("id-ID")}`;
+                  })()}
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {activeTab === "payment" && (
+          <div className="space-y-6 py-4">
+            {purchaseOrder.status === "received" &&
+            (purchaseOrder as any).paymentType === "paid" ? (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-center gap-2">
+                  <Check className="h-5 w-5 text-green-600" />
+                  <div>
+                    <h3 className="font-semibold text-green-900">
+                      Status Pembayaran: Lunas
+                    </h3>
+                    <p className="text-sm text-green-700">
+                      PO ini sudah dibayar lunas saat terima barang. Tidak perlu
+                      mencatat pembayaran tambahan.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <POPaymentHistory purchaseOrderId={purchaseOrder.id} />
+                </div>
+              </div>
+            ) : (
+              <>
+                <POPaymentSummary
+                  key={`summary-${paymentRefreshKey}`}
+                  purchaseOrderId={purchaseOrder.id}
+                  poTotal={poTotal}
+                />
+
+                <div className="bg-white border rounded-lg p-4">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold">Pembayaran</h3>
+                    <Button
+                      size="sm"
+                      onClick={() => setShowPaymentForm(true)}
+                      variant="outline"
+                    >
+                      <CreditCard className="h-4 w-4 mr-1" />
+                      Catat Pembayaran
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="bg-white border rounded-lg p-4">
+                  <POPaymentHistory
+                    key={`history-${paymentRefreshKey}`}
+                    purchaseOrderId={purchaseOrder.id}
+                  />
+                </div>
+
+                <POPaymentForm
+                  isOpen={showPaymentForm}
+                  onClose={() => setShowPaymentForm(false)}
+                  onSuccess={() => {
+                    setShowPaymentForm(false);
+                    // Trigger refresh of payment summary and history
+                    setPaymentRefreshKey((prev) => prev + 1);
+                    // Dispatch custom event to refresh payment components
+                    window.dispatchEvent(new Event("po-payment-refresh"));
+                    if (onApprove) onApprove(); // Refresh PO data
+                  }}
+                  purchaseOrderId={purchaseOrder.id}
+                  schedules={[]}
+                />
+              </>
+            )}
+          </div>
+        )}
 
         <DialogFooter>
           {purchaseOrder.status === "draft" && onApprove && (

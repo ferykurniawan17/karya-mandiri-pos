@@ -18,7 +18,7 @@ export async function POST(
     }
 
     const body = await request.json()
-    const { items } = body // Array of { itemId, receivedQuantity, purchasePrice, purchaseUnit? }
+    const { items, paymentType } = body // Array of { itemId, receivedQuantity, purchasePrice, purchaseUnit? }, paymentType: "paid" | "installment"
 
     if (!items || items.length === 0) {
       return NextResponse.json(
@@ -163,6 +163,7 @@ export async function POST(
         status: 'received',
         receivedAt: new Date(),
         total: new Prisma.Decimal(newTotal),
+        paymentType: paymentType || 'paid', // Default to "paid" if not provided
       },
       include: {
         provider: true,
