@@ -5,6 +5,7 @@ import { X, Check, ChevronDown } from "lucide-react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { cn } from "@/lib/utils";
 import { Product } from "@/types";
+import { getEffectiveStock, getEffectiveUnit } from "@/lib/product-units";
 
 interface ProductSelectorProps {
   products: Product[];
@@ -200,9 +201,9 @@ export function ProductSelector({
                           <div className="text-xs text-gray-500">Stok</div>
                           <div className={cn(
                             "text-sm font-medium",
-                            product.stock <= product.minimalStock ? "text-red-600" : "text-gray-900"
+                            getEffectiveStock(product) <= ((product.minimalBaseStock !== null && product.minimalBaseStock !== undefined) ? Number(product.minimalBaseStock) : (product.minimalStock || 0)) ? "text-red-600" : "text-gray-900"
                           )}>
-                            {product.stock} {product.unit}
+                            {getEffectiveStock(product).toLocaleString('id-ID', { maximumFractionDigits: 2 })} {getEffectiveUnit(product) || product.unit}
                           </div>
                         </div>
                       </div>

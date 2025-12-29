@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Product, Category, Brand } from "@/types";
+import { getEffectiveStock, getEffectiveUnit } from "@/lib/product-units";
 
 interface Tag {
   id: string;
@@ -222,7 +223,11 @@ export default function ProductSelectionModal({
   };
 
   const isLowStock = (product: Product) => {
-    return product.stock <= product.minimalStock;
+    const effectiveStock = getEffectiveStock(product);
+    const effectiveMinimalStock = (product.minimalBaseStock !== null && product.minimalBaseStock !== undefined)
+      ? Number(product.minimalBaseStock)
+      : (product.minimalStock || 0);
+    return effectiveStock <= effectiveMinimalStock;
   };
 
   const handleProductClick = (product: Product) => {
@@ -288,17 +293,17 @@ export default function ProductSelectionModal({
         </div>
 
         <div className="mt-2 space-y-1 text-xs">
-          <div className="flex justify-between">
-            <span className="text-gray-600">Stok:</span>
-            <span
-              className={`font-medium ${
-                isLowStock(product) ? "text-red-600" : "text-gray-900"
-              }`}
-            >
-              {product.stock} {product.unit}
-              {isLowStock(product) && " ⚠️"}
-            </span>
-          </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Stok:</span>
+                          <span
+                            className={`font-medium ${
+                              isLowStock(product) ? "text-red-600" : "text-gray-900"
+                            }`}
+                          >
+                            {getEffectiveStock(product).toLocaleString('id-ID', { maximumFractionDigits: 2 })} {getEffectiveUnit(product) || product.unit}
+                            {isLowStock(product) && " ⚠️"}
+                          </span>
+                        </div>
           {product.purchasePrice && (
             <div className="flex justify-between">
               <span className="text-gray-600">Harga Beli:</span>

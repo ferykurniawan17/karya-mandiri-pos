@@ -298,8 +298,14 @@ export default function ProductManagement() {
     }
   };
 
-  // Get low stock products
-  const lowStockProducts = products.filter((p) => p.stock <= p.minimalStock);
+  // Get low stock products using effective stock
+  const lowStockProducts = products.filter((p) => {
+    const effectiveStock = getEffectiveStock(p);
+    const effectiveMinimalStock = (p.minimalBaseStock !== null && p.minimalBaseStock !== undefined)
+      ? Number(p.minimalBaseStock)
+      : (p.minimalStock || 0);
+    return effectiveStock <= effectiveMinimalStock;
+  });
 
   return (
     <div className="px-4 py-6 sm:px-0">

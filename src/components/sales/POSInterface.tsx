@@ -96,20 +96,19 @@ export default function POSInterface() {
       const data = await response.json();
       if (response.ok) {
         // Filter and ensure all required Product fields are present
-        const validProducts = data.products.filter((p: any) => 
-          p.stock > 0 && 
-          p.id && 
-          p.name && 
-          p.stock !== undefined && 
-          p.minimalStock !== undefined && 
-          p.unit && 
-          p.purchasePrice !== undefined && 
-          p.sellingPrice !== undefined && 
-          p.categoryId && 
-          p.category &&
-          p.createdAt &&
-          p.updatedAt
-        ) as Product[];
+        // Use getEffectiveStock to check stock (supports both baseStock and stock)
+        const validProducts = data.products.filter((p: any) => {
+          const effectiveStock = getEffectiveStock(p);
+          return effectiveStock > 0 && 
+            p.id && 
+            p.name && 
+            p.purchasePrice !== undefined && 
+            p.sellingPrice !== undefined && 
+            p.categoryId && 
+            p.category &&
+            p.createdAt &&
+            p.updatedAt
+        }) as Product[];
         setProducts(validProducts);
       }
     } catch (err) {
@@ -738,7 +737,7 @@ export default function POSInterface() {
                   key={product.id}
                   onClick={() => addToCart(product)}
                   className="p-3 border border-gray-200 rounded-lg hover:border-indigo-500 hover:shadow-md transition text-left"
-                  disabled={product.stock === 0}
+                  disabled={getEffectiveStock(product) === 0}
                 >
                   {product.photo && (
                     <img
@@ -754,7 +753,7 @@ export default function POSInterface() {
                     {formatCurrency(product.sellingPrice)}
                   </p>
                   <p className="text-xs text-gray-400">
-                    Stok: {product.stock} {product.unit}
+                    Stok: {getEffectiveStock(product).toLocaleString('id-ID', { maximumFractionDigits: 2 })} {getEffectiveUnit(product) || product.unit}
                   </p>
                 </button>
               ))}

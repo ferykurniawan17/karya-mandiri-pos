@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { getEffectiveStock, getEffectiveUnit } from '@/lib/product-units'
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,10 +34,7 @@ export async function GET(request: NextRequest) {
 
     switch (reportType) {
       case 'low-stock':
-        // PostgreSQL supports column comparison
-        where.stock = {
-          lte: prisma.product.fields.minimalStock,
-        }
+        // Get all products and filter by effective stock
         products = await prisma.product.findMany({
           where,
           include: {
@@ -44,18 +42,33 @@ export async function GET(request: NextRequest) {
             brand: true,
           },
         })
-        data = products.map((p) => ({
-          productId: p.id,
-          productName: p.name,
-          sku: p.sku,
-          category: p.category.name,
-          brand: p.brand?.name || '-',
-          stock: p.stock,
-          minimalStock: p.minimalStock,
-          unit: p.unit,
-          purchasePrice: p.purchasePrice ? Number(p.purchasePrice) : 0,
-          sellingPrice: Number(p.sellingPrice),
-        }))
+        // Filter products with low effective stock
+        const lowStockProducts = products.filter((p) => {
+          const effectiveStock = getEffectiveStock(p);
+          const effectiveMinimalStock = (p.minimalBaseStock !== null && p.minimalBaseStock !== undefined)
+            ? Number(p.minimalBaseStock)
+            : (p.minimalStock || 0);
+          return effectiveStock <= effectiveMinimalStock;
+        });
+        data = lowStockProducts.map((p) => {
+          const effectiveStock = getEffectiveStock(p);
+          const effectiveMinimalStock = (p.minimalBaseStock !== null && p.minimalBaseStock !== undefined)
+            ? Number(p.minimalBaseStock)
+            : (p.minimalStock || 0);
+          const effectiveUnit = getEffectiveUnit(p) || p.unit;
+          return {
+            productId: p.id,
+            productName: p.name,
+            sku: p.sku,
+            category: p.category.name,
+            brand: p.brand?.name || '-',
+            stock: effectiveStock,
+            minimalStock: effectiveMinimalStock,
+            unit: effectiveUnit,
+            purchasePrice: p.purchasePrice ? Number(p.purchasePrice) : 0,
+            sellingPrice: Number(p.sellingPrice),
+          };
+        })
         break
 
       case 'fast-moving':
@@ -153,17 +166,21 @@ export async function GET(request: NextRequest) {
         })
 
         products = allProductsSlow.filter((p) => !soldProductIds.has(p.id))
-        data = products.map((p) => ({
-          productId: p.id,
-          productName: p.name,
-          sku: p.sku,
-          category: p.category.name,
-          brand: p.brand?.name || '-',
-          stock: p.stock,
-          unit: p.unit,
-          purchasePrice: p.purchasePrice ? Number(p.purchasePrice) : 0,
-          sellingPrice: Number(p.sellingPrice),
-        }))
+        data = products.map((p) => {
+          const effectiveStock = getEffectiveStock(p);
+          const effectiveUnit = getEffectiveUnit(p) || p.unit;
+          return {
+            productId: p.id,
+            productName: p.name,
+            sku: p.sku,
+            category: p.category.name,
+            brand: p.brand?.name || '-',
+            stock: effectiveStock,
+            unit: effectiveUnit,
+            purchasePrice: p.purchasePrice ? Number(p.purchasePrice) : 0,
+            sellingPrice: Number(p.sellingPrice),
+          };
+        })
         break
 
       case 'valuation':
@@ -177,16 +194,18 @@ export async function GET(request: NextRequest) {
         })
 
         data = allProductsVal.map((p) => {
+          const effectiveStock = getEffectiveStock(p);
+          const effectiveUnit = getEffectiveUnit(p) || p.unit;
           const purchasePrice = p.purchasePrice ? Number(p.purchasePrice) : 0
-          const valuation = p.stock * purchasePrice
+          const valuation = effectiveStock * purchasePrice
           return {
             productId: p.id,
             productName: p.name,
             sku: p.sku,
             category: p.category.name,
             brand: p.brand?.name || '-',
-            stock: p.stock,
-            unit: p.unit,
+            stock: effectiveStock,
+            unit: effectiveUnit,
             purchasePrice,
             valuation,
           }

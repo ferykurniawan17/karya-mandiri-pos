@@ -544,114 +544,200 @@ export async function POST(request: NextRequest) {
       .substr(2, 9)
       .toUpperCase()}`;
 
-    // Create transaction first (without items to avoid nested create issues with Decimal)
-    const transaction = await prisma.transaction.create({
-      data: {
-        invoiceNo,
-        total: new Prisma.Decimal(total),
-        cash: new Prisma.Decimal(cashAmount),
-        credit: new Prisma.Decimal(creditAmount),
-        change: new Prisma.Decimal(change),
-        paymentStatus: finalPaymentStatus,
-        paymentMethod: paymentMethod || null,
-        customerId: customerId || null,
-        projectId: finalProjectId || null,
-        projectName: projectName || null, // Keep for backward compatibility
-        note: note || null,
-        userId: user.id,
-      },
-    });
+    // Use Prisma transaction to ensure atomicity
+    // All operations (create transaction, create items, update stocks) must succeed together
+    const result = await prisma.$transaction(async (tx) => {
+      // Create transaction first
+      const transaction = await tx.transaction.create({
+        data: {
+          invoiceNo,
+          total: new Prisma.Decimal(total),
+          cash: new Prisma.Decimal(cashAmount),
+          credit: new Prisma.Decimal(creditAmount),
+          change: new Prisma.Decimal(change),
+          paymentStatus: finalPaymentStatus,
+          paymentMethod: paymentMethod || null,
+          customerId: customerId || null,
+          projectId: finalProjectId || null,
+          projectName: projectName || null,
+          note: note || null,
+          userId: user.id,
+        },
+      });
 
-    // Create transaction items separately to ensure Decimal values are preserved correctly
-    console.log(
-      `[DEBUG] Creating ${transactionItems.length} transaction items...`
-    );
-    for (const item of transactionItems) {
-      // Get the numeric values (they should already be numbers from the array)
-      const qtyValue = Number(item.quantity);
-      const priceValue = Number(item.price);
-      const subtotalValue = Number(item.subtotal);
-
+      // Create transaction items
       console.log(
-        `[DEBUG] Creating item - qtyValue: ${qtyValue}, priceValue: ${priceValue}, subtotalValue: ${subtotalValue}`
+        `[DEBUG] Creating ${transactionItems.length} transaction items...`
       );
+      for (const item of transactionItems) {
+        const qtyValue = Number(item.quantity);
+        const priceValue = Number(item.price);
+        const subtotalValue = Number(item.subtotal);
 
-      // Validate quantity
-      if (isNaN(qtyValue) || qtyValue <= 0) {
-        console.error(
-          `[ERROR] Invalid quantity: ${qtyValue} for product ${item.productId}`
+        console.log(
+          `[DEBUG] Creating item - qtyValue: ${qtyValue}, priceValue: ${priceValue}, subtotalValue: ${subtotalValue}`
         );
-        return NextResponse.json(
-          { error: `Quantity tidak valid: ${qtyValue}` },
-          { status: 400 }
-        );
+
+        if (isNaN(qtyValue) || qtyValue <= 0) {
+          throw new Error(`Quantity tidak valid: ${qtyValue} untuk produk ${item.productId}`);
+        }
+
+        await tx.transactionItem.create({
+          data: {
+            id: randomUUID(),
+            transactionId: transaction.id,
+            productId: item.productId,
+            sellingUnitId: item.sellingUnitId || null,
+            quantity: item.quantity,
+            price: item.price,
+            subtotal: item.subtotal,
+            status: item.status || null,
+          },
+        });
       }
 
-      // PostgreSQL handles Decimal types correctly with Prisma
-      await prisma.transactionItem.create({
-        data: {
-          id: randomUUID(),
-          transactionId: transaction.id,
-          productId: item.productId,
-          sellingUnitId: item.sellingUnitId || null,
-          quantity: item.quantity,
-          price: item.price,
-          subtotal: item.subtotal,
-          status: item.status || null,
-        },
-      })
-    }
+      // Update product stocks - MUST be done within the same transaction
+      console.log(`[DEBUG] ========== STARTING STOCK UPDATE ==========`);
+      console.log(`[DEBUG] Updating stocks for ${transactionItems.length} products...`);
+      for (const item of transactionItems) {
+        console.log(`[DEBUG] Processing item: productId=${item.productId}, quantity=${item.quantity}`);
+        
+        const product = await tx.product.findUnique({
+          where: { id: item.productId },
+        });
 
-    // Fetch the complete transaction with items
-    const transactionWithItems = await prisma.transaction.findUnique({
-      where: { id: transaction.id },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            username: true,
-          },
-        },
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            phone: true,
-            email: true,
-            address: true,
-          },
-        },
-        project: {
-          select: {
-            id: true,
-            name: true,
-            customerId: true,
-            isDefault: true,
-          },
-        },
-        items: {
-          include: {
-            product: {
-              include: {
-                category: true,
-              },
+        if (!product) {
+          throw new Error(`Produk ${item.productId} tidak ditemukan untuk update stok`);
+        }
+
+        console.log(`[DEBUG] Product found: ${product.name}`);
+        console.log(`[DEBUG] - baseUnit: ${product.baseUnit}`);
+        console.log(`[DEBUG] - baseStock: ${product.baseStock} (type: ${typeof product.baseStock})`);
+        console.log(`[DEBUG] - stock: ${product.stock}`);
+
+        const stockDeduction = Number(item.quantity);
+        if (isNaN(stockDeduction) || stockDeduction <= 0) {
+          throw new Error(`Invalid stock deduction: ${stockDeduction} untuk produk ${item.productId}`);
+        }
+
+        console.log(`[DEBUG] Stock deduction amount: ${stockDeduction}`);
+
+        // Check if product uses baseStock
+        // Use same logic as edit transaction endpoint
+        // Check both baseStock and baseUnit to be safe
+        const hasBaseStock = (product.baseStock !== null && product.baseStock !== undefined) || 
+                            (product.baseUnit !== null && product.baseUnit !== undefined);
+        
+        console.log(`[DEBUG] hasBaseStock: ${hasBaseStock}`);
+        
+        const updateData: any = {};
+        if (hasBaseStock) {
+          // For baseStock, use direct number (Prisma will handle Decimal conversion)
+          updateData.baseStock = {
+            decrement: stockDeduction,
+          };
+          const currentBaseStock = product.baseStock 
+            ? (typeof product.baseStock === 'object' && 'toNumber' in product.baseStock 
+                ? product.baseStock.toNumber() 
+                : Number(product.baseStock))
+            : 0;
+          console.log(
+            `[DEBUG] Updating baseStock for ${product.name} (ID: ${product.id}): current=${currentBaseStock}, decrement=${stockDeduction}, expected_new=${currentBaseStock - stockDeduction}`
+          );
+        } else {
+          updateData.stock = {
+            decrement: Math.round(stockDeduction),
+          };
+          console.log(
+            `[DEBUG] Updating stock for ${product.name} (ID: ${product.id}): current=${product.stock}, decrement=${Math.round(stockDeduction)}, expected_new=${product.stock - Math.round(stockDeduction)}`
+          );
+        }
+
+        console.log(`[DEBUG] Update data:`, JSON.stringify(updateData, null, 2));
+        
+        const updatedProduct = await tx.product.update({
+          where: { id: item.productId },
+          data: updateData,
+        });
+
+        // Verify update
+        if (hasBaseStock) {
+          const newBaseStock = updatedProduct.baseStock 
+            ? (typeof updatedProduct.baseStock === 'object' && 'toNumber' in updatedProduct.baseStock 
+                ? updatedProduct.baseStock.toNumber() 
+                : Number(updatedProduct.baseStock))
+            : 0;
+          const oldBaseStock = product.baseStock 
+            ? (typeof product.baseStock === 'object' && 'toNumber' in product.baseStock 
+                ? product.baseStock.toNumber() 
+                : Number(product.baseStock))
+            : 0;
+          console.log(`[DEBUG] ✅ Stock updated: ${product.name}`);
+          console.log(`[DEBUG]    - OLD baseStock: ${oldBaseStock}`);
+          console.log(`[DEBUG]    - NEW baseStock: ${newBaseStock}`);
+          console.log(`[DEBUG]    - Difference: ${oldBaseStock - newBaseStock} (expected: ${stockDeduction})`);
+        } else {
+          const oldStock = product.stock || 0;
+          const newStock = updatedProduct.stock || 0;
+          console.log(`[DEBUG] ✅ Stock updated: ${product.name}`);
+          console.log(`[DEBUG]    - OLD stock: ${oldStock}`);
+          console.log(`[DEBUG]    - NEW stock: ${newStock}`);
+          console.log(`[DEBUG]    - Difference: ${oldStock - newStock} (expected: ${Math.round(stockDeduction)})`);
+        }
+        console.log(`[DEBUG] ========== END STOCK UPDATE FOR ${product.name} ==========`);
+      }
+
+      // Fetch complete transaction with items for response
+      const transactionWithItems = await tx.transaction.findUnique({
+        where: { id: transaction.id },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
             },
-            sellingUnit: true,
+          },
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              phone: true,
+              email: true,
+              address: true,
+            },
+          },
+          project: {
+            select: {
+              id: true,
+              name: true,
+              customerId: true,
+              isDefault: true,
+            },
+          },
+          items: {
+            include: {
+              product: {
+                include: {
+                  category: true,
+                },
+              },
+              sellingUnit: true,
+            },
           },
         },
-      },
+      });
+
+      if (!transactionWithItems) {
+        throw new Error("Gagal mengambil transaksi yang dibuat");
+      }
+
+      return transactionWithItems;
     });
 
-    if (!transactionWithItems) {
-      return NextResponse.json(
-        { error: "Gagal membuat transaksi" },
-        { status: 500 }
-      );
-    }
-
-    // PostgreSQL handles Decimal types correctly, no raw SQL needed
+    // transactionWithItems is now returned from the Prisma transaction
+    const transactionWithItems = result;
 
     // Debug: Verify quantity after create
     console.log(`[DEBUG] Transaction created. Verifying items:`);
@@ -665,40 +751,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Update product stocks
-    for (const item of items) {
-      const product = await prisma.product.findUnique({
-        where: { id: item.productId },
-        include: {
-          sellingUnits: {
-            where: { isActive: true },
-          },
-        },
-      });
-
-      if (!product) continue;
-
-      // Quantity is already in base unit from transaction items
-      const stockDeduction = item.quantity;
-
-      // Update stock - use baseStock if available, otherwise stock
-      const updateData: any = {};
-      if (product.baseStock !== null && product.baseStock !== undefined) {
-        updateData.baseStock = {
-          decrement: stockDeduction,
-        };
-      } else {
-        // Fallback to old stock field for backward compatibility
-        updateData.stock = {
-          decrement: Math.round(stockDeduction),
-        };
-      }
-
-      await prisma.product.update({
-        where: { id: item.productId },
-        data: updateData,
-      });
-    }
+    // Stock update is already done inside the Prisma transaction above
+    // No need to update again here
 
     // Serialize Decimal fields to numbers for JSON response
     const serializedTransaction = {

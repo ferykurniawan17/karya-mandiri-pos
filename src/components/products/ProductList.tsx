@@ -8,6 +8,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { Edit, Trash2, Copy, TrendingUp } from 'lucide-react'
+import { getEffectiveStock, getEffectiveUnit, getEffectiveMinimalStock } from '@/lib/product-units'
 
 interface Category {
   id: string
@@ -56,7 +57,11 @@ export default function ProductList({ products, onEdit, onDelete, onDuplicate, o
   }
 
   const isLowStock = (product: Product) => {
-    return product.stock <= product.minimalStock
+    const effectiveStock = getEffectiveStock(product);
+    const effectiveMinimalStock = (product.minimalBaseStock !== null && product.minimalBaseStock !== undefined)
+      ? Number(product.minimalBaseStock)
+      : (product.minimalStock || 0);
+    return effectiveStock <= effectiveMinimalStock;
   }
 
   if (products.length === 0) {
@@ -119,7 +124,7 @@ export default function ProductList({ products, onEdit, onDelete, onDuplicate, o
               <div className="flex justify-between">
                 <span className="text-gray-600">Stok:</span>
                 <span className={`font-medium ${isLowStock(product) ? 'text-red-600' : 'text-gray-900'}`}>
-                  {product.stock} {product.unit}
+                  {getEffectiveStock(product).toLocaleString('id-ID', { maximumFractionDigits: 2 })} {getEffectiveUnit(product) || product.unit}
                   {isLowStock(product) && ' ⚠️'}
                 </span>
               </div>
