@@ -55,15 +55,17 @@ export default function POPaymentSummary({
     fetchSummary();
   }, [purchaseOrderId]);
 
-  // Listen for refresh event
+  // Listen for refresh events
   useEffect(() => {
     const handleRefresh = () => {
       fetchSummary();
     };
     
     window.addEventListener('po-payment-refresh', handleRefresh);
+    window.addEventListener('po-payment-updated', handleRefresh);
     return () => {
       window.removeEventListener('po-payment-refresh', handleRefresh);
+      window.removeEventListener('po-payment-updated', handleRefresh);
     };
   }, [purchaseOrderId]);
 

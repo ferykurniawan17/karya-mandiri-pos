@@ -37,6 +37,26 @@ interface POPaymentFormProps {
   onSuccess: () => void;
   purchaseOrderId: string;
   schedules?: PaymentSchedule[];
+  editingPayment?: Payment | null;
+}
+
+interface Payment {
+  id: string;
+  amount: number;
+  paymentDate: Date | string;
+  paymentMethod: string;
+  note?: string | null;
+  scheduleId?: string | null;
+  allocations?: Array<{
+    id: string;
+    amount: number;
+    scheduleId: string;
+    schedule: {
+      id: string;
+      dueDate: Date | string;
+      amount: number;
+    };
+  }>;
 }
 
 export default function POPaymentForm({
@@ -45,6 +65,7 @@ export default function POPaymentForm({
   onSuccess,
   purchaseOrderId,
   schedules = [],
+  editingPayment = null,
 }: POPaymentFormProps) {
   const [amount, setAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState(
@@ -67,20 +88,63 @@ export default function POPaymentForm({
 
   useEffect(() => {
     if (isOpen) {
-      setAmount("");
-      setPaymentDate(new Date().toISOString().split("T")[0]);
-      setPaymentMethod("cash");
-      setNote("");
-      // Default to "none" if no schedules, otherwise "schedule"
-      setAllocationMode(schedules.length > 0 ? "schedule" : "none");
-      setSelectedScheduleId("");
-      setManualAllocations({});
-      setSelectedScheduleIds([]);
+      if (editingPayment) {
+        // Edit mode: populate form with existing payment data
+        setAmount(editingPayment.amount.toString());
+        setPaymentDate(
+          new Date(editingPayment.paymentDate).toISOString().split("T")[0]
+        );
+        setPaymentMethod(editingPayment.paymentMethod);
+        setNote(editingPayment.note || "");
+        
+        // Set allocation mode based on existing allocations
+        if (editingPayment.allocations && editingPayment.allocations.length > 0) {
+          if (editingPayment.allocations.length === 1) {
+            // Single allocation - use schedule mode
+            setAllocationMode("schedule");
+            setSelectedScheduleId(editingPayment.allocations[0].scheduleId);
+            setManualAllocations({
+              [editingPayment.allocations[0].scheduleId]: editingPayment.allocations[0].amount.toString(),
+            });
+          } else {
+            // Multiple allocations - use manual mode
+            setAllocationMode("manual");
+            const allocations: Record<string, string> = {};
+            const scheduleIds: string[] = [];
+            editingPayment.allocations.forEach((alloc) => {
+              allocations[alloc.scheduleId] = alloc.amount.toString();
+              scheduleIds.push(alloc.scheduleId);
+            });
+            setManualAllocations(allocations);
+            setSelectedScheduleIds(scheduleIds);
+          }
+        } else if (editingPayment.scheduleId) {
+          // Has schedule but no allocations (direct schedule payment)
+          setAllocationMode("schedule");
+          setSelectedScheduleId(editingPayment.scheduleId);
+        } else {
+          // No allocation
+          setAllocationMode("none");
+        }
+        
+        setPayFull(false);
+      } else {
+        // Create mode: reset form
+        setAmount("");
+        setPaymentDate(new Date().toISOString().split("T")[0]);
+        setPaymentMethod("cash");
+        setNote("");
+        // Default to "none" if no schedules, otherwise "schedule"
+        setAllocationMode(schedules.length > 0 ? "schedule" : "none");
+        setSelectedScheduleId("");
+        setManualAllocations({});
+        setSelectedScheduleIds([]);
+        setPayFull(false);
+      }
       setError("");
-      setPayFull(false);
       fetchRemainingDebt();
     }
-  }, [isOpen, schedules, purchaseOrderId]);
+  }, [isOpen, schedules, purchaseOrderId, editingPayment]);
 
   const fetchRemainingDebt = async () => {
     try {
@@ -269,16 +333,19 @@ export default function POPaymentForm({
         payload.allocationMode = "none";
       }
 
-      const response = await fetch(
-        `/api/purchase-orders/${purchaseOrderId}/payments`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
+      const url = editingPayment
+        ? `/api/purchase-orders/${purchaseOrderId}/payments/${editingPayment.id}`
+        : `/api/purchase-orders/${purchaseOrderId}/payments`;
+      
+      const method = editingPayment ? "PUT" : "POST";
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
       const data = await response.json();
 
@@ -300,7 +367,7 @@ export default function POPaymentForm({
         onSuccess();
         onClose();
       } else {
-        setError(data.error || "Gagal mencatat pembayaran");
+        setError(data.error || (editingPayment ? "Gagal mengupdate pembayaran" : "Gagal mencatat pembayaran"));
       }
     } catch (err: any) {
       console.error("Error submitting payment:", err);
@@ -318,7 +385,9 @@ export default function POPaymentForm({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Catat Pembayaran</DialogTitle>
+          <DialogTitle>
+            {editingPayment ? "Edit Pembayaran" : "Catat Pembayaran"}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">

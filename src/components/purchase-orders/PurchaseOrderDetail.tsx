@@ -391,7 +391,10 @@ export default function PurchaseOrderDetail({
                   </div>
                 </div>
                 <div className="mt-4">
-                  <POPaymentHistory purchaseOrderId={purchaseOrder.id} />
+                  <POPaymentHistory
+                    purchaseOrderId={purchaseOrder.id}
+                    schedules={[]}
+                  />
                 </div>
               </div>
             ) : (
@@ -420,6 +423,12 @@ export default function PurchaseOrderDetail({
                   <POPaymentHistory
                     key={`history-${paymentRefreshKey}`}
                     purchaseOrderId={purchaseOrder.id}
+                    schedules={[]}
+                    onPaymentUpdated={() => {
+                      // Refresh payment summary when payment is updated
+                      setPaymentRefreshKey((prev) => prev + 1);
+                      window.dispatchEvent(new Event("po-payment-refresh"));
+                    }}
                   />
                 </div>
 
