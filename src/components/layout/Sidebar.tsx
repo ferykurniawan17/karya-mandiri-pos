@@ -14,6 +14,7 @@ import {
   FileText,
   BarChart3,
   CreditCard,
+  LayoutDashboard,
 } from "lucide-react";
 import SyncStatus from "@/components/sync/SyncStatus";
 
@@ -26,6 +27,13 @@ export default function Sidebar({ isCollapsed, userRole }: SidebarProps) {
   const pathname = usePathname();
 
   const menuItems = [
+    {
+      href: "/dashboard",
+      icon: LayoutDashboard,
+      label: "Dashboard",
+      description: "Ringkasan dan statistik",
+      color: "text-blue-600",
+    },
     {
       href: "/products",
       icon: Package,
