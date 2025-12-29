@@ -123,7 +123,11 @@ export default function Sidebar({ isCollapsed, userRole }: SidebarProps) {
         isCollapsed ? "w-0 overflow-hidden" : "w-80"
       }`}
     >
-      <div className={`h-full overflow-y-auto ${isCollapsed ? "opacity-0" : "opacity-100"} transition-opacity duration-300`}>
+      <div
+        className={`h-full overflow-y-auto ${
+          isCollapsed ? "opacity-0" : "opacity-100"
+        } transition-opacity duration-300`}
+      >
         <div className="p-6">
           {/* Featured POS Menu */}
           <div className="mb-6 relative overflow-hidden">
@@ -156,16 +160,17 @@ export default function Sidebar({ isCollapsed, userRole }: SidebarProps) {
           </div>
 
           {/* Menu Items */}
-          <div className="space-y-2">
+          <div className="space-y-0">
             {menuItems.map((item) => {
               const Icon = item.icon;
-              const isActive = pathname === item.href || pathname?.startsWith(item.href + "/");
-              
+              const isActive =
+                pathname === item.href || pathname?.startsWith(item.href + "/");
+
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-3 p-3 rounded-lg transition-colors group ${
+                  className={`flex items-center gap-3 p-2 rounded-lg transition-colors group ${
                     isActive
                       ? "bg-blue-50 border-l-4 border-blue-600"
                       : "hover:bg-gray-100"
@@ -198,4 +203,3 @@ export default function Sidebar({ isCollapsed, userRole }: SidebarProps) {
     </aside>
   );
 }
-
